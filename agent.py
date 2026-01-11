@@ -10,7 +10,7 @@ from tools import TOOL_REGISTRY
 
 load_dotenv()
 
-YOU_COLOR = "\u001b[94m"
+USER_COLOR = "\u001b[94m"
 ASSISTANT_COLOR = "\u001b[93m"
 RESET_COLOR = "\u001b[0m"
 
@@ -58,14 +58,14 @@ class Agent:
         return response.choices[0].message
 
     def run(self):
-        print(self.SYSTEM_PROMPT.strip())
+        print("Agent system prompt:\n", self.SYSTEM_PROMPT.strip(), "\n\n")
         conversation = [{
             "role": "system",
             "content": self.SYSTEM_PROMPT
         }]
         while True:
             try:
-                user_input = input(f"{YOU_COLOR}You:{RESET_COLOR}:")
+                user_input = input(f"{USER_COLOR}You:{RESET_COLOR} ")
             except (KeyboardInterrupt, EOFError):
                 break
             conversation.append({
@@ -76,7 +76,7 @@ class Agent:
                 assistant_message = self._execute_llm_call(conversation)
                 tool_calls = assistant_message.tool_calls or []
                 if not tool_calls:
-                    print(f"{ASSISTANT_COLOR}Assistant:{RESET_COLOR}: {assistant_message.content}")
+                    print(f"{ASSISTANT_COLOR}Assistant:{RESET_COLOR} {assistant_message.content}")
                     conversation.append({
                         "role": "assistant",
                         "content": assistant_message.content # type: ignore
