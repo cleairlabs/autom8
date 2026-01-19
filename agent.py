@@ -10,10 +10,6 @@ from tools import TOOL_REGISTRY
 
 load_dotenv()
 
-USER_COLOR = "\u001b[94m"
-ASSISTANT_COLOR = "\u001b[93m"
-RESET_COLOR = "\u001b[0m"
-
 class Agent:
     def __init__(self, model: str = "gpt-5", api_key: str | None = None):
         if api_key is None:
@@ -26,6 +22,13 @@ class Agent:
         Use available tools when needed.
         If no tool is needed, respond normally.
         """
+        self.prompt = self._reset_prompt()
+
+    def _reset_prompt(self) -> List[Dict[str, str]]:
+        return [{
+            "role": "system",
+            "content": self.SYSTEM_PROMPT
+        }]
 
     def _build_tools(self) -> List[Dict[str, Any]]:
         tools = []
@@ -47,69 +50,49 @@ class Agent:
             })
         return tools
 
-    def _execute_llm_call(self, conversation: List[Dict[str, str]]):
+    def _execute_llm_call(self, prompt: List[Dict[str, str]]):
         response = self.openai_client.chat.completions.create(
             model=self.model,
-            messages=conversation, # type: ignore
+            messages=prompt, # type: ignore
             max_completion_tokens=2000,
             tools=self.tools, # type: ignore
             tool_choice="auto"
         )
         return response.choices[0].message
+    
+    def _format_prompt(self, role, input, tool_calls=None):
+        message = {
+            "role": role,
+            "content": "" if input is None else input.strip()
+        }
+        if tool_calls: message["tool_calls"] = tool_calls
+        self.prompt.append(message)
 
-    def run(self):
-        print("Agent system prompt:\n", self.SYSTEM_PROMPT.strip(), "\n\n")
-        conversation = [{
-            "role": "system",
-            "content": self.SYSTEM_PROMPT
-        }]
+    def run_turn(self, user_input: str, on_tool_call=None) -> str:
+        self._format_prompt("user", user_input)
         while True:
-            try:
-                user_input = input(f"{USER_COLOR}You:{RESET_COLOR} ")
-            except (KeyboardInterrupt, EOFError):
-                break
-            conversation.append({
-                "role": "user",
-                "content": user_input.strip()
-            })
-            while True:
-                assistant_message = self._execute_llm_call(conversation)
-                tool_calls = assistant_message.tool_calls or []
-                if not tool_calls:
-                    print(f"{ASSISTANT_COLOR}Assistant:{RESET_COLOR} {assistant_message.content}")
-                    conversation.append({
-                        "role": "assistant",
-                        "content": assistant_message.content # type: ignore
-                    })
-                    break
-                conversation.append({
-                    "role": "assistant",
-                    "content": assistant_message.content,
-                    "tool_calls": tool_calls
-                }) # type: ignore
-                for call in tool_calls:
-                    name = call.function.name # type: ignore
-                    args = json.loads(call.function.arguments or "{}") # type: ignore
-                    tool = TOOL_REGISTRY[name]
-                    resp = ""
-                    print(name, args)
-                    if name == "read_file":
-                        resp = tool(args.get("filename", "."))
-                    elif name == "list_files":
-                        resp = tool(args.get("path", "."))
-                    elif name == "edit_file":
-                        resp = tool(args.get("path", "."), 
-                                    args.get("old_str", ""), 
-                                    args.get("new_str", ""))
-                    conversation.append({
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "content": json.dumps(resp)
-                    })
-
-
-
-
-
-if __name__ == "__main__":
-    Agent().run()
+            assistant_message = self._execute_llm_call(self.prompt)
+            tool_calls = assistant_message.tool_calls or []
+            if not tool_calls:
+                self._format_prompt("assistant", assistant_message.content)
+                return assistant_message.content # type: ignore
+            
+            self._format_prompt("assistant", assistant_message.content, tool_calls)
+            for call in tool_calls:
+                name = call.function.name # type: ignore
+                args = json.loads(call.function.arguments or "{}") # type: ignore
+                if on_tool_call is not None:
+                    on_tool_call(name, args)
+                tool = TOOL_REGISTRY[name]
+                signature = inspect.signature(tool)
+                kwargs = {
+                    param: args.get(param)
+                    for param in signature.parameters
+                    if param in args
+                }
+                resp = tool(**kwargs)
+                self.prompt.append({
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": json.dumps(resp)
+                })
