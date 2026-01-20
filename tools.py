@@ -2,9 +2,12 @@ from pathlib import Path
 from typing import Any, Dict
 
 
-def resolve_abs_path(path_str: str) -> Path:
+def _resolve_abs_path(path_str: str) -> Path:
     """
-    file.py -> /Users/home/mihail/modern-software-dev-lectures/file.py
+    Resolve a user-provided path into an absolute Path, expanding "~" and
+    treating relative paths as relative to the current working directory.
+    :param path_str: The path to resolve.
+    :return: The absolute Path for the resolved location.
     """
     path = Path(path_str).expanduser()
     if not path.is_absolute():
@@ -18,7 +21,7 @@ def read_file_tool(filename: str = ".") -> Dict[str, Any]:
     :param filename: The name of the file to read.
     :return: The full content of the file.
     """
-    full_path = resolve_abs_path(filename)
+    full_path = _resolve_abs_path(filename)
     print(full_path)
     with open(str(full_path), "r") as f:
         content = f.read()
@@ -34,7 +37,7 @@ def list_files_tool(path: str = ".") -> Dict[str, Any]:
     :param path: The path to a directory to list files from.
     :return: A list of files in the directory.
     """
-    full_path = resolve_abs_path(path)
+    full_path = _resolve_abs_path(path)
     all_files = []
     for item in full_path.iterdir():
         all_files.append({
@@ -56,7 +59,7 @@ def edit_file_tool(path: str = ".", old_str: str = "", new_str: str = "") -> Dic
     :param new_str: The string to replace with.
     :return: A dictionary with the path to the file and the action taken.
     """
-    full_path = resolve_abs_path(path)
+    full_path = _resolve_abs_path(path)
     if old_str == "":
         full_path.write_text(new_str, encoding="utf-8")
         return {
