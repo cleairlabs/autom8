@@ -4,3 +4,14 @@
         <img alt="lighbench logo" src="docs/autom8-darkmode-logo.png"" width="50%" height="50%">
     </picture>
 </div>
+
+Install with `pipx`:
+```bash
+pipx install git+https://github.com/cleairlabs/autom8
+```
+
+If you do not have `pipx` installed, you can install it with:
+python -m pip install --user pipx
+```bash
+python -m pip install --user pipx
+```

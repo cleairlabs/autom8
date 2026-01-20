@@ -8,3 +8,14 @@ dependencies = [
     "openai>=1.0.0",
     "python-dotenv>=1.0.0",
 ]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools]
+py-modules = ["autom8", "agent", "tools"]
+
+[project.scripts]
+"8" = "autom8:main"
