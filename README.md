@@ -5,7 +5,20 @@
     </picture>
 </div>
 
-Install with `pipx`:
+
+Start by cloning the **GitHub** repository, then create and activate a virtual environment before installing with `pip`:
+```bash
+python -m venv .venv
+```
+```bash
+source .venv/bin/activate
+```
+```bash
+pip install -e .
+```
+
+
+<!-- Install with `pipx`:
 ```bash
 pipx install git+https://github.com/cleairlabs/autom8
 ```
@@ -13,4 +26,4 @@ pipx install git+https://github.com/cleairlabs/autom8
 If you do not have `pipx` installed, you can install it with:
 ```bash
 python -m pip install --user pipx
-```
+``` -->
