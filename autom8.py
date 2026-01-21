@@ -8,7 +8,7 @@ RESET_COLOR = "\u001b[0m"
 
 
 def main() -> None:
-    print(Figlet(font="slant").renderText("Autom8"))
+    print(Figlet(font="big").renderText("Autom8"))
 
     agent = Agent()    
     while True:
