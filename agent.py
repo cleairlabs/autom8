@@ -7,21 +7,22 @@ from dotenv import load_dotenv
 from typing import Any, Dict, List
 
 from tools import TOOL_REGISTRY
+from prompts import SYSTEM_PROMPT
 
 load_dotenv()
 
 class Agent:
-    def __init__(self, model: str = "gpt-5", api_key: str | None = None):
-        if api_key is None:
-            api_key = os.environ["OPENAI_API_KEY"]
+    def __init__(
+        self,
+        model: str = "gpt-5",
+        api_key: str | None = None,
+        system_prompt: str = SYSTEM_PROMPT,
+    ):
+        if api_key is None: api_key = os.environ["OPENAI_API_KEY"]
         self.model = model
         self.openai_client = OpenAI(api_key=api_key)
         self.tools = self._build_tools()
-        self.SYSTEM_PROMPT = """
-        You are a coding assistant whose goal it is to help us solve coding tasks.
-        Use available tools when needed.
-        If no tool is needed, respond normally.
-        """
+        self.SYSTEM_PROMPT = system_prompt
         self.prompt = self._reset_prompt()
 
     def _reset_prompt(self) -> List[Dict[str, str]]:
