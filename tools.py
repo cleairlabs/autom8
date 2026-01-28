@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 GRAY = "\u001b[38;5;245m"
 RESET = "\u001b[0m"
@@ -116,11 +116,119 @@ def create_directory_tool(path: str = ".") -> Dict[str, Any]:
         }
     except Exception as e:
         return {"error": str(e)}
+    
+
+def git_status_tool() -> str:
+    """
+    Return git status --porcelain output for the current repository.
+
+    IMPORTANT: This function is read-only. It does not modify the working tree or index.
+    Use it to determine what files are modified/untracked/staged in a parse-friendly format.
+
+    Returns:
+        The raw stdout from git status --porcelain (may be an empty string if clean).
+
+    Raises:
+        subprocess.CalledProcessError: If Git fails (e.g. repository not initialized).
+    """
+    import subprocess
+    print(f"{GRAY}Running git status...{RESET}")
+    cmd = ["git", "status", "--porcelain"]
+    result = subprocess.run(cmd, check=True, text=True, capture_output=True)
+    return result.stdout
+
+
+def git_add_tool(path: str) -> None:
+    """
+    Stage a specific path with git add -- path.
+
+    IMPORTANT: Only call this function when the user has explicitly asked you to stage a file
+    (or clearly instructed you to prepare changes for a commit). Do NOT call it proactively.
+
+    This stages the provided file/directory path only (not the whole repo).
+
+    Args:
+        path: The file or directory path to stage.
+
+    Raises:
+        subprocess.CalledProcessError: If Git fails (e.g. path does not exist, repository not initialized).
+    """
+    import subprocess
+    print(f"{GRAY}Running git add -- {path}...{RESET}")
+    cmd = ["git", "add", "--", path]
+    subprocess.run(cmd, check=True, text=True)
+
+
+def git_diff_tool(path: Optional[str] = None) -> str:
+    """
+    Return a unified diff from git diff.
+
+    IMPORTANT: This function is read-only. It does not modify the working tree or index.
+    Use it to review changes before staging or committing.
+
+    Args:
+        path: If provided, limits the diff to this path.
+
+    Returns:
+        The raw stdout from the diff command (may be an empty string if no differences).
+
+    Raises:
+        subprocess.CalledProcessError: If Git fails (e.g. repository not initialized).
+    """
+    import subprocess
+    cmd = ["git", "diff"]
+    if path is not None:
+        print(f"{GRAY}Running git diff -- {path}...{RESET}")
+        cmd.append("--")
+        cmd.append(path)
+    else: print(f"{GRAY}Running git diff...{RESET}")
+    result = subprocess.run(cmd, check=True, text=True, capture_output=True)
+    return result.stdout
+
+
+def git_commit_tool(message: str) -> None:
+    """
+    Create a local Git commit using the Autom8 bot identity.
+
+    IMPORTANT: Only call this function when the user has explicitly requested that changes be committed
+    or has clearly instructed you to upload/share the work via Git. 
+    Do NOT call this function proactively just because files changed, tests pass, or a task seems finished. 
+    If the user has not asked for a commit, leave the working tree as-is and report what changed instead.
+
+    This function performs a local git commit and does not push to any remote. 
+    Authentication/SSH keys are not used here; those are only relevant for git push.
+
+    Args:
+        message: The commit message to use.
+
+    Raises:
+        subprocess.CalledProcessError: If Git refuses to create the commit (e.g. nothing staged to commit,
+        commit hooks fail, repository not initialized, etc.).
+    """
+    import subprocess
+    print(f"{GRAY}Committing changes with message: {message}...{RESET}")
+    cmd = [
+        "git",
+        "-c", "user.name=autom8",
+        "-c", "user.email=autom8robot@proton.me",
+        "-c", "commit.gpgsign=false",
+        "commit",
+        "-m", message,
+    ]
+    subprocess.run(cmd, check=True, text=True)
+
+
+
 
 
 TOOL_REGISTRY = {
     "read_file": read_file_tool,
     "list_files": list_files_tool,
     "edit_file": edit_file_tool,
-    "create_directory": create_directory_tool
+    "create_directory": create_directory_tool,
+    # Git tools
+    "git_status": git_status_tool,
+    "git_add": git_add_tool,
+    "git_diff": git_diff_tool,
+    "git_commit": git_commit_tool,
 }
