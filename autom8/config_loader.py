@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 import yaml
 
-from tools import TOOL_REGISTRY
+from .tools import TOOL_REGISTRY
 
 
 def load_agent_config(path: str, agent_id: str | None = None) -> Dict[str, Any]:

@@ -6,9 +6,10 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from typing import Any, Dict, List
 
-from tools import TOOL_REGISTRY
+from .tools import TOOL_REGISTRY
 
 load_dotenv()
+
 
 class Agent:
     def __init__(
@@ -68,13 +69,13 @@ class Agent:
     def _execute_llm_call(self, prompt: List[Dict[str, str]]):
         response = self.openai_client.chat.completions.create(
             model=self.model,
-            messages=prompt, # type: ignore
+            messages=prompt,  # type: ignore
             max_completion_tokens=self.max_completion_tokens,
-            tools=self.tools, # type: ignore
-            tool_choice=self.tool_choice # type: ignore
+            tools=self.tools,  # type: ignore
+            tool_choice=self.tool_choice  # type: ignore
         )
         return response.choices[0].message
-    
+
     def _format_prompt(self, role, input, tool_calls=None):
         message = {
             "role": role,
@@ -83,19 +84,19 @@ class Agent:
         if tool_calls: message["tool_calls"] = tool_calls
         self.prompt.append(message)
 
-    def run_turn(self, user_input: str, on_tool_call=None) -> str:
+    def invoke(self, user_input: str, on_tool_call=None) -> str:
         self._format_prompt("user", user_input)
         while True:
             assistant_message = self._execute_llm_call(self.prompt)
             tool_calls = assistant_message.tool_calls or []
             if not tool_calls:
                 self._format_prompt("assistant", assistant_message.content)
-                return assistant_message.content # type: ignore
-            
+                return assistant_message.content  # type: ignore
+
             self._format_prompt("assistant", assistant_message.content, tool_calls)
             for call in tool_calls:
-                name = call.function.name # type: ignore
-                args = json.loads(call.function.arguments or "{}") # type: ignore
+                name = call.function.name  # type: ignore
+                args = json.loads(call.function.arguments or "{}")  # type: ignore
                 if on_tool_call is not None:
                     on_tool_call(name, args)
                 tool = self.tool_registry[name]

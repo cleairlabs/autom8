@@ -24,7 +24,7 @@ def read_file_tool(filename: str = ".") -> Dict[str, Any]:
     :param filename: The name of the file to read.
     :return: The full content of the file.
     """
-    print(f"{GRAY}Reading {filename}...{RESET}")
+    print(f"{GRAY}Reading {filename} {RESET}")
     try:
         full_path = _resolve_abs_path(filename)
         with open(str(full_path), "r") as f:
@@ -43,7 +43,7 @@ def list_files_tool(path: str = ".") -> Dict[str, Any]:
     :param path: The path to a directory to list files from.
     :return: A list of files in the directory.
     """
-    print(f"{GRAY}Listing files at {path}...{RESET}")
+    print(f"{GRAY}Listing files at {path} {RESET}")
     try:
         full_path = _resolve_abs_path(path)
         all_files = []
@@ -69,7 +69,7 @@ def edit_file_tool(path: str = ".", old_str: str = "", new_str: str = "") -> Dic
     :param new_str: The string to replace with.
     :return: A dictionary with the path to the file and the action taken.
     """
-    print(f"{GRAY}Editing file {path}...{RESET}")
+    print(f"{GRAY}Editing file {path} {RESET}")
     try:
         full_path = _resolve_abs_path(path)
         if not full_path.exists() and old_str != "":
@@ -106,7 +106,7 @@ def create_directory_tool(path: str = ".") -> Dict[str, Any]:
     :param path: The path to create.
     :return: A dictionary with the path and the action taken.
     """
-    print(f"{GRAY}Creating directory {path}...{RESET}")
+    print(f"{GRAY}Creating directory {path} {RESET}")
     try:
         full_path = _resolve_abs_path(path)
         full_path.mkdir(parents=True, exist_ok=True)
@@ -116,7 +116,7 @@ def create_directory_tool(path: str = ".") -> Dict[str, Any]:
         }
     except Exception as e:
         return {"error": str(e)}
-    
+
 
 def git_status_tool() -> str:
     """
@@ -132,7 +132,7 @@ def git_status_tool() -> str:
         subprocess.CalledProcessError: If Git fails (e.g. repository not initialized).
     """
     import subprocess
-    print(f"{GRAY}Running git status...{RESET}")
+    print(f"{GRAY}Running git status {RESET}")
     cmd = ["git", "status", "--porcelain"]
     result = subprocess.run(cmd, check=True, text=True, capture_output=True)
     return result.stdout
@@ -154,7 +154,7 @@ def git_add_tool(path: str) -> None:
         subprocess.CalledProcessError: If Git fails (e.g. path does not exist, repository not initialized).
     """
     import subprocess
-    print(f"{GRAY}Running git add -- {path}...{RESET}")
+    print(f"{GRAY}Running git add -- {path} {RESET}")
     cmd = ["git", "add", "--", path]
     subprocess.run(cmd, check=True, text=True)
 
@@ -178,10 +178,10 @@ def git_diff_tool(path: Optional[str] = None) -> str:
     import subprocess
     cmd = ["git", "diff"]
     if path is not None:
-        print(f"{GRAY}Running git diff -- {path}...{RESET}")
+        print(f"{GRAY}Running git diff -- {path} {RESET}")
         cmd.append("--")
         cmd.append(path)
-    else: print(f"{GRAY}Running git diff...{RESET}")
+    else: print(f"{GRAY}Running git diff {RESET}")
     result = subprocess.run(cmd, check=True, text=True, capture_output=True)
     return result.stdout
 
@@ -191,11 +191,11 @@ def git_commit_tool(message: str) -> None:
     Create a local Git commit using the Autom8 bot identity.
 
     IMPORTANT: Only call this function when the user has explicitly requested that changes be committed
-    or has clearly instructed you to upload/share the work via Git. 
-    Do NOT call this function proactively just because files changed, tests pass, or a task seems finished. 
+    or has clearly instructed you to upload/share the work via Git.
+    Do NOT call this function proactively just because files changed, tests pass, or a task seems finished.
     If the user has not asked for a commit, leave the working tree as-is and report what changed instead.
 
-    This function performs a local git commit and does not push to any remote. 
+    This function performs a local git commit and does not push to any remote.
     Authentication/SSH keys are not used here; those are only relevant for git push.
 
     Args:
@@ -206,7 +206,7 @@ def git_commit_tool(message: str) -> None:
         commit hooks fail, repository not initialized, etc.).
     """
     import subprocess
-    print(f"{GRAY}Committing changes with message: {message}...{RESET}")
+    print(f"{GRAY}Committing changes with message: {message} {RESET}")
     cmd = [
         "git",
         "-c", "user.name=autom8",
@@ -216,9 +216,6 @@ def git_commit_tool(message: str) -> None:
         "-m", message,
     ]
     subprocess.run(cmd, check=True, text=True)
-
-
-
 
 
 TOOL_REGISTRY = {
