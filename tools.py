@@ -222,6 +222,7 @@ def git_commit_tool(message: str) -> None:
 
 
 TOOL_REGISTRY = {
+    # CLI tools
     "read_file": read_file_tool,
     "list_files": list_files_tool,
     "edit_file": edit_file_tool,

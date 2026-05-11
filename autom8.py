@@ -12,6 +12,7 @@ except Exception:  # pragma: no cover - optional dependency
     terminal_input = None
 
 from agent import Agent
+from config_loader import load_agent_config
 
 USER_COLOR = "\u001b[94m"
 ASSISTANT_COLOR = "\u001b[93m"
@@ -21,7 +22,8 @@ RESET_COLOR = "\u001b[0m"
 def main() -> None:
     print(Figlet(font="big").renderText("Autom8"))
 
-    agent = Agent()    
+    agent_config = load_agent_config("agent_config.yaml")
+    agent = Agent.from_config(agent_config)
     while True:
         try:
             if terminal_input is not None:
