@@ -7,9 +7,13 @@ requires-python = ">=3.10"
 dependencies = [
     "openai>=1.0.0",
     "python-dotenv>=1.0.0",
+    "PyYAML>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
     "pyfiglet",
     "prompt-toolkit",
-    "PyYAML>=6.0.0",
 ]
 
 [build-system]
@@ -18,7 +22,4 @@ build-backend = "setuptools.build_meta"
 
 
 [tool.setuptools]
-py-modules = ["autom8", "agent", "config_loader", "tools"]
-
-[project.scripts]
-"8" = "autom8:main"
+packages = ["autom8"]

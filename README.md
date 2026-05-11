@@ -17,13 +17,17 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+The package installs the reusable library code only. Create your own script and pass an explicit path to your YAML config when calling `load_agent_config(...)`.
 
-<!-- Install with `pipx`:
-```bash
-pipx install git+https://github.com/cleairlabs/autom8
+Example:
+```python
+from autom8 import Agent, load_agent_config
+
+agent_config = load_agent_config("agent_config.yaml")
+agent = Agent.from_config(agent_config)
 ```
 
-If you do not have `pipx` installed, you can install it with:
+A runnable demo script and sample config live in `examples/`. To run the example script, install the dev extra:
 ```bash
-python -m pip install --user pipx
-``` -->
+pip install -e .[dev]
+```
