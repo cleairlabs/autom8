@@ -3,6 +3,9 @@ defaults:
   max_completion_tokens: 2000
   tool_choice: auto
 
+custom_tools:
+  weather_search: user_tools:weather_search_tool
+
 agents:
   - id: coder
     system_prompt: |
@@ -14,6 +17,7 @@ agents:
       - list_files
       - edit_file
       - create_directory
+      - weather_search
       # Git tools
       - git_status
       - git_diff
