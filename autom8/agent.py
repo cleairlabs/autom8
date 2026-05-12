@@ -29,7 +29,9 @@ class Agent:
         self.tool_choice = tool_choice
         self.tools = self._build_tools()
         self.SYSTEM_PROMPT = system_prompt
-        self.prompt = self._reset_prompt()
+        self.sessions: Dict[int, List[Dict[str, Any]]] = {}
+        self.session_instructions: Dict[int, str] = {}
+
 
     @classmethod
     def from_config(cls, config: Dict[str, Any], api_key: str | None = None) -> "Agent":
@@ -40,11 +42,13 @@ class Agent:
                    max_completion_tokens=config["max_completion_tokens"],
                    tool_choice=config["tool_choice"])
 
-    def _reset_prompt(self) -> List[Dict[str, str]]:
+
+    def _reset_prompt(self, system_prompt: str) -> List[Dict[str, Any]]:
         return [{
             "role": "system",
-            "content": self.SYSTEM_PROMPT
+            "content": system_prompt
         }]
+
 
     def _build_tools(self) -> List[Dict[str, Any]]:
         tools = []
@@ -66,34 +70,65 @@ class Agent:
             })
         return tools
 
-    def _execute_llm_call(self, prompt: List[Dict[str, str]]):
-        response = self.openai_client.chat.completions.create(
-            model=self.model,
-            messages=prompt,  # type: ignore
-            max_completion_tokens=self.max_completion_tokens,
-            tools=self.tools,  # type: ignore
-            tool_choice=self.tool_choice  # type: ignore
-        )
+
+    def _execute_llm_call(self, prompt: List[Dict[str, Any]], model: str):
+        response = self.openai_client.chat.completions.create(model=model,
+                                                              messages=prompt,  # type: ignore
+                                                              max_completion_tokens=self.max_completion_tokens,
+                                                              tools=self.tools,  # type: ignore
+                                                              tool_choice=self.tool_choice)  # type: ignore
         return response.choices[0].message
 
-    def _format_prompt(self, role, input, tool_calls=None):
-        message = {
-            "role": role,
-            "content": "" if input is None else input.strip()
-        }
-        if tool_calls: message["tool_calls"] = tool_calls
-        self.prompt.append(message)
 
-    def invoke(self, user_input: str, on_tool_call=None) -> str:
-        self._format_prompt("user", user_input)
+    def _format_prompt(self, prompt: List[Dict[str, Any]], role: str, input: Any, tool_calls=None):
+        message = {
+            "role": role
+        }
+        if isinstance(input, str):
+            message["content"] = input.strip()
+        else:
+            message["content"] = "" if input is None else input
+        if tool_calls: message["tool_calls"] = tool_calls
+        prompt.append(message)
+
+
+    def _build_user_content(self, message: str | None, image_url: str | None) -> Any:
+        if image_url is None:
+            if message is None:
+                raise ValueError("message is required when image_url is not provided")
+            return message
+        content: List[Dict[str, Any]] = [{"type": "image_url", "image_url": {"url": image_url}}]
+        if message is not None:
+            content.insert(0, {"type": "text", "text": message})
+        return content
+
+
+    def invoke(self,
+               message: str | None = None,
+               *,
+               chat_id: int = 0,
+               instructions: str | None = None,
+               image_url: str | None = None,
+               model: str | None = None,
+               on_tool_call=None) -> str:
+        active_instructions = self.SYSTEM_PROMPT if instructions is None else instructions
+        current_instructions = self.session_instructions.get(chat_id)
+        if current_instructions != active_instructions or chat_id not in self.sessions:
+            self.sessions[chat_id] = self._reset_prompt(active_instructions)
+            self.session_instructions[chat_id] = active_instructions
+
+        prompt = self.sessions[chat_id]
+        user_content = self._build_user_content(message, image_url)
+        self._format_prompt(prompt, "user", user_content)
+
         while True:
-            assistant_message = self._execute_llm_call(self.prompt)
+            assistant_message = self._execute_llm_call(prompt, self.model if model is None else model)
             tool_calls = assistant_message.tool_calls or []
             if not tool_calls:
-                self._format_prompt("assistant", assistant_message.content)
+                self._format_prompt(prompt, "assistant", assistant_message.content)
                 return assistant_message.content  # type: ignore
 
-            self._format_prompt("assistant", assistant_message.content, tool_calls)
+            self._format_prompt(prompt, "assistant", assistant_message.content, tool_calls)
             for call in tool_calls:
                 name = call.function.name  # type: ignore
                 args = json.loads(call.function.arguments or "{}")  # type: ignore
@@ -107,8 +142,13 @@ class Agent:
                     if param in args
                 }
                 resp = tool(**kwargs)
-                self.prompt.append({
+                prompt.append({
                     "role": "tool",
                     "tool_call_id": call.id,
                     "content": json.dumps(resp)
                 })
+
+
+    def reset(self, chat_id: int) -> None:
+        self.sessions.pop(chat_id, None)
+        self.session_instructions.pop(chat_id, None)
