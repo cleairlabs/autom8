@@ -1,10 +1,15 @@
 <div align='center'>
     <picture>
         <source media="(prefers-color-scheme: light)" srcset="docs/autom8-lightmode-logo.png">
-        <img alt="lighbench logo" src="docs/autom8-darkmode-logo.png"" width="50%" height="50%">
+        <img alt="lighbench logo" src="docs/autom8-darkmode-logo.png"" width="30%" height="50%">
     </picture>
 </div>
 
+
+Install directly from GitHub with `pip`:
+```bash
+pip install git+https://github.com/cleairlabs/autom8.git
+```
 
 Start by cloning the **GitHub** repository, then create and activate a virtual environment before installing with `pip`:
 ```bash
