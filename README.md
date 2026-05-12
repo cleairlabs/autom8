@@ -1,28 +1,32 @@
 <div align='center'>
     <picture>
         <source media="(prefers-color-scheme: light)" srcset="docs/autom8-lightmode-logo.png">
-        <img alt="lighbench logo" src="docs/autom8-darkmode-logo.png"" width="30%" height="50%">
+        <img alt="autom8 logo" src="docs/autom8-darkmode-logo.png" width="30%" height="50%">
     </picture>
 </div>
 
+
+Autom8 is a minimal framework for building AI agents.
+
+## Install from GitHub
 
 Install directly from GitHub with `pip`:
 ```bash
 pip install git+https://github.com/cleairlabs/autom8.git
 ```
 
+## Install locally
+
 Start by cloning the **GitHub** repository, then create and activate a virtual environment before installing with `pip`:
 ```bash
+git clone https://github.com/cleairlabs/autom8.git
+cd autom8
 python -m venv .venv
-```
-```bash
 source .venv/bin/activate
-```
-```bash
 pip install -e .
 ```
 
-The package installs the reusable library code only. Create your own script and pass an explicit path to your YAML config when calling `load_agent_config(...)`.
+The `pip` install provides the reusable library code only. If you install from GitHub, create your own script and pass an explicit path to your YAML config when calling `load_agent_config(...)`. If you clone the repository locally, a runnable example script and sample config are included in `examples/`.
 
 Example:
 ```python
@@ -34,7 +38,7 @@ agent = Agent.from_config(agent_config)
 
 A runnable demo script and sample config live in `examples/`. To run the example script, install the dev extra:
 ```bash
-pip install -e .[dev]
+pip install -e '.[dev]'
 ```
 
 Run the example from the `examples/` directory:
