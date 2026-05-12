@@ -62,3 +62,16 @@ Custom tools must live in an importable Python module or package.
 Autom8 does not resolve custom tools relative to the YAML file.
 If your YAML file and custom tool module live in the same directory, run Python from that directory so the module is importable.
 You may need to add an `__init__.py` file if your custom tools live in a package directory.
+
+## Predefined tools
+
+| Tool name | Arguments | Description |
+| --- | --- | --- |
+| `read_file` | `filename: str` | Read the full contents of a file. |
+| `list_files` | `path: str` | List files and directories in a directory. |
+| `edit_file` | `path: str`, `old_str: str`, `new_str: str` | Replace the first occurrence of `old_str`, or create/overwrite the file when `old_str` is empty. |
+| `create_directory` | `path: str` | Create a directory, including parent directories. |
+| `git_status` | none | Return `git status --porcelain`. |
+| `git_add` | `path: str` | Stage a specific path with `git add -- path`. |
+| `git_diff` | `path: str` | Return `git diff`, optionally limited to one path. |
+| `git_commit` | `message: str` | Create a local git commit. |
