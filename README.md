@@ -15,17 +15,6 @@ Install directly from GitHub with `pip`:
 pip install git+https://github.com/cleairlabs/autom8.git
 ```
 
-## Install locally
-
-Start by cloning the **GitHub** repository, then create and activate a virtual environment before installing with `pip`:
-```bash
-git clone https://github.com/cleairlabs/autom8.git
-cd autom8
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
-
 The `pip` install provides the reusable library code only. If you install from GitHub, create your own script and pass an explicit path to your YAML config when calling `load_agent_config(...)`. If you clone the repository locally, a runnable example script and sample config are included in `examples/`.
 
 Example:
@@ -36,16 +25,7 @@ agent_config = load_agent_config("agent_config.yaml")
 agent = Agent.from_config(agent_config)
 ```
 
-A runnable demo script and sample config live in `examples/`. To run the example script, install the dev extra:
-```bash
-pip install -e '.[dev]'
-```
-
-Run the example from the `examples/` directory:
-```bash
-cd examples
-python autom8_example_agent.py
-```
+For local development setup, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Agent config reference
 
