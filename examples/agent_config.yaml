@@ -1,5 +1,5 @@
 defaults:
-  model: gpt-5
+  model: openai/gpt-5
   max_completion_tokens: 2000
   tool_choice: auto
 

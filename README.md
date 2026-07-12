@@ -7,6 +7,7 @@
 
 
 Autom8 is a minimal framework for building AI agents.
+It uses LiteLLM for model calls, so models are selected with provider-prefixed names like `openai/gpt-5`, `anthropic/claude-sonnet-4-5`, `mistral/mistral-large-latest`, or `gemini/gemini-2.0-flash`.
 
 ## Install from GitHub
 
@@ -25,13 +26,32 @@ agent_config = load_agent_config("agent_config.yaml")
 agent = Agent.from_config(agent_config)
 ```
 
+For direct usage without YAML, pass the model to `invoke(...)`:
+
+```python
+from autom8 import Agent
+
+agent = Agent()
+agent.invoke("Hello", model="openai/gpt-5")
+```
+
+Set `model` when most calls should use the same model:
+
+```python
+agent = Agent(model="openai/gpt-5")
+agent.invoke("Hello")
+agent.invoke("Hello", model="anthropic/claude-sonnet-4-5")
+```
+
+Configure provider keys with LiteLLM's standard environment variables, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, or `GEMINI_API_KEY`.
+
 For local development setup, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Agent config reference
 
 ```yaml
 defaults:
-  model: string
+  model: provider/model-name
   max_completion_tokens: integer
   tool_choice: string
 
@@ -40,10 +60,33 @@ custom_tools:
 
 agents:
   - id: string
-    model: string
+    model: provider/model-name
     system_prompt: string
     tool_names:
       - string
+```
+
+Pass `response_format` to `Agent.invoke(...)` when a single call should use structured output.
+The value is passed through to LiteLLM.
+
+```python
+response_format = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "answer",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "summary": {"type": "string"}
+            },
+            "required": ["summary"],
+            "additionalProperties": False
+        },
+        "strict": True
+    }
+}
+
+agent.invoke("Summarize this.", response_format=response_format)
 ```
 
 `custom_tools` values must use normal Python imports in `module:function` format.
