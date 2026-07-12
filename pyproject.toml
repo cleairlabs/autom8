@@ -1,11 +1,11 @@
 [project]
 name = "autom8"
 version = "0.1.0"
-description = "Minimal terminal-based coding agent using OpenAI tool calling."
+description = "Minimal framework for building LLM agents"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "openai>=1.0.0",
+    "litellm>=1.91.3,<1.92.0",
     "python-dotenv>=1.0.0",
     "PyYAML>=6.0.0",
 ]

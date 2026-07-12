@@ -73,7 +73,7 @@ def load_agent_config(path: str, agent_id: str | None = None) -> Dict[str, Any]:
 
     return {
         "id": selected_agent.get("id"),
-        "model": selected_agent.get("model", defaults.get("model", "gpt-5")),
+        "model": selected_agent.get("model", defaults.get("model", "openai/gpt-5")),
         "system_prompt": system_prompt,
         "tool_registry": tool_registry,
         "max_completion_tokens": defaults.get("max_completion_tokens", 2000),

@@ -1,8 +1,7 @@
 import inspect
 import json
-import os
 
-from openai import OpenAI
+from litellm import completion
 from dotenv import load_dotenv
 from typing import Any, Dict, List
 
@@ -14,16 +13,13 @@ load_dotenv()
 class Agent:
     def __init__(
         self,
-        model: str = "gpt-5",
-        api_key: str | None = None,
+        model: str | None = None,
         system_prompt: str = "",
         tool_registry: Dict[str, Any] = TOOL_REGISTRY,
         max_completion_tokens: int = 2000,
         tool_choice: str = "auto",
     ):
-        if api_key is None: api_key = os.environ["OPENAI_API_KEY"]
-        self.model = model
-        self.openai_client = OpenAI(api_key=api_key)
+        self.default_model = model
         self.tool_registry = tool_registry
         self.max_completion_tokens = max_completion_tokens
         self.tool_choice = tool_choice
@@ -34,13 +30,13 @@ class Agent:
 
 
     @classmethod
-    def from_config(cls, config: Dict[str, Any], api_key: str | None = None) -> "Agent":
-        return cls(model=config["model"],
-                   api_key=api_key,
-                   system_prompt=config["system_prompt"],
-                   tool_registry=config["tool_registry"],
-                   max_completion_tokens=config["max_completion_tokens"],
-                   tool_choice=config["tool_choice"])
+    def from_config(cls, config: Dict[str, Any]) -> "Agent":
+        agent = cls(model=config["model"],
+                    system_prompt=config["system_prompt"],
+                    tool_registry=config["tool_registry"],
+                    max_completion_tokens=config["max_completion_tokens"],
+                    tool_choice=config["tool_choice"])
+        return agent
 
 
     def _reset_prompt(self, system_prompt: str) -> List[Dict[str, Any]]:
@@ -71,13 +67,19 @@ class Agent:
         return tools
 
 
-    def _execute_llm_call(self, prompt: List[Dict[str, Any]], model: str):
-        response = self.openai_client.chat.completions.create(model=model,
-                                                              messages=prompt,  # type: ignore
-                                                              max_completion_tokens=self.max_completion_tokens,
-                                                              tools=self.tools,  # type: ignore
-                                                              tool_choice=self.tool_choice)  # type: ignore
-        return response.choices[0].message
+    def _execute_llm_call(self, prompt: List[Dict[str, Any]], model: str, response_format: Dict[str, Any] | None):
+        request_options = {
+            "model": model,
+            "messages": prompt,
+            "max_completion_tokens": self.max_completion_tokens,
+            "tools": self.tools,
+            "tool_choice": self.tool_choice,
+        }
+        if response_format is not None:
+            request_options["response_format"] = response_format
+
+        response = completion(**request_options)  # type: ignore
+        return response.choices[0].message # type: ignore
 
 
     def _format_prompt(self, prompt: List[Dict[str, Any]], role: str, input: Any, tool_calls=None):
@@ -108,9 +110,14 @@ class Agent:
                *,
                chat_id: int = 0,
                instructions: str | None = None,
-               image_url: str | None = None,
                model: str | None = None,
+               image_url: str | None = None,
+               response_format: Dict[str, Any] | None = None,
                on_tool_call=None) -> str:
+        if model is None:
+            if self.default_model is None:
+                raise ValueError("No model specified")
+            model = self.default_model
         active_instructions = self.SYSTEM_PROMPT if instructions is None else instructions
         current_instructions = self.session_instructions.get(chat_id)
         if current_instructions != active_instructions or chat_id not in self.sessions:
@@ -122,7 +129,7 @@ class Agent:
         self._format_prompt(prompt, "user", user_content)
 
         while True:
-            assistant_message = self._execute_llm_call(prompt, self.model if model is None else model)
+            assistant_message = self._execute_llm_call(prompt, model, response_format)
             tool_calls = assistant_message.tool_calls or []
             if not tool_calls:
                 self._format_prompt(prompt, "assistant", assistant_message.content)
@@ -134,7 +141,7 @@ class Agent:
                 args = json.loads(call.function.arguments or "{}")  # type: ignore
                 if on_tool_call is not None:
                     on_tool_call(name, args)
-                tool = self.tool_registry[name]
+                tool = self.tool_registry[name] # type: ignore
                 signature = inspect.signature(tool)
                 kwargs = {
                     param: args.get(param)
