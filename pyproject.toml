@@ -5,7 +5,7 @@ description = "Minimal framework for building LLM agents"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "litellm>=1.91.3,<1.92.0",
+    "litellm==1.91.3",
     "python-dotenv>=1.0.0",
     "PyYAML>=6.0.0",
 ]
