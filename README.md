@@ -5,6 +5,8 @@
     </picture>
 </div>
 
+[![Pytests](https://github.com/cleairlabs/autom8/actions/workflows/pytests.yml/badge.svg)](https://github.com/cleairlabs/autom8/actions/workflows/pytests.yml)
+
 
 Autom8 is a minimal framework for building AI agents.
 It uses LiteLLM for model calls, so models are selected with provider-prefixed names like `openai/gpt-5`, `anthropic/claude-sonnet-4-5`, `mistral/mistral-large-latest`, or `gemini/gemini-2.0-flash`.
