@@ -28,6 +28,17 @@ agent_config = load_agent_config("agent_config.yaml")
 agent = Agent.from_config(agent_config)
 ```
 
+Or with multiple agents:
+```python
+from autom8 import Agent, load_agent_config
+
+researcher_config = load_agent_config("agents.yaml", agent_id="researcher")
+researcher = Agent.from_config(researcher_config)
+
+coder_config = load_agent_config("agents.yaml", agent_id="coder")
+coder = Agent.from_config(coder_config)
+```
+
 For direct usage without YAML, pass the model to `invoke(...)`:
 
 ```python
