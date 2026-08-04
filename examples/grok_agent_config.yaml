@@ -1,0 +1,12 @@
+defaults:
+  model: xai/grok-4.5
+  max_completion_tokens: 1000
+  tool_choice: auto
+
+agents:
+  - id: grok
+    system_prompt: |
+      You are a concise assistant. Use the available tools when they are needed.
+    tool_names:
+      - list_files
+      - read_file

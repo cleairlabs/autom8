@@ -5,6 +5,7 @@ from litellm import completion
 from dotenv import load_dotenv
 from typing import Any, Dict, List
 
+from .llm_adapter import normalize
 from .tools import TOOL_REGISTRY
 
 load_dotenv()
@@ -78,7 +79,7 @@ class Agent:
         if response_format is not None:
             request_options["response_format"] = response_format
 
-        response = completion(**request_options)  # type: ignore
+        response = completion(**normalize(request_options))  # type: ignore
         return response.choices[0].message # type: ignore
 
 

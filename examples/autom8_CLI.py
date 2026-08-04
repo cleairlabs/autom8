@@ -23,7 +23,7 @@ RESET_COLOR = "\u001b[0m"
 def main() -> None:
     print(Figlet(font="big").renderText("Autom8"))
 
-    config_path = Path(__file__).with_name("agent_config.yaml")
+    config_path = Path(__file__).with_name("grok_agent_config.yaml")
     agent_config = load_agent_config(str(config_path))
     agent = Agent.from_config(agent_config)
     while True:
