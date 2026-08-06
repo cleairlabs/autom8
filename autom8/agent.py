@@ -73,9 +73,10 @@ class Agent:
             "model": model,
             "messages": prompt,
             "max_completion_tokens": self.max_completion_tokens,
-            "tools": self.tools,
-            "tool_choice": self.tool_choice,
         }
+        if self.tools:
+            request_options["tools"] = self.tools
+            request_options["tool_choice"] = self.tool_choice
         if response_format is not None:
             request_options["response_format"] = response_format
 
