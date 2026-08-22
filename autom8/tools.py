@@ -1,5 +1,7 @@
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
+
+from .results import ToolResult
 
 GRAY = "\u001b[38;5;245m"
 RESET = "\u001b[0m"
@@ -18,107 +20,83 @@ def _resolve_abs_path(path_str: str) -> Path:
     return path
 
 
-def read_file_tool(filename: str = ".") -> Dict[str, Any]:
+def read_file_tool(filename: str = ".") -> ToolResult:
     """
     Gets the full content of a file provided by the user.
     :param filename: The name of the file to read.
-    :return: The full content of the file.
+    :return: A tool result containing the file path and content.
     """
     print(f"{GRAY}Reading {filename} {RESET}")
     try:
         full_path = _resolve_abs_path(filename)
         with open(str(full_path), "r") as f:
             content = f.read()
-        return {
-            "file_path": str(full_path),
-            "content": content
-        }
+        return ToolResult(type="data", values=[{"file_path": str(full_path), "content": content}])
     except Exception as e:
-        return {"error": str(e)}
+        return ToolResult(type="data", values=[{"error": str(e)}])
 
 
-def list_files_tool(path: str = ".") -> Dict[str, Any]:
+def list_files_tool(path: str = ".") -> ToolResult:
     """
     Lists the files in a directory provided by the user.
     :param path: The path to a directory to list files from.
-    :return: A list of files in the directory.
+    :return: A tool result containing the files in the directory.
     """
     print(f"{GRAY}Listing files at {path} {RESET}")
     try:
         full_path = _resolve_abs_path(path)
         all_files = []
         for item in full_path.iterdir():
-            all_files.append({
-                "filename": item.name,
-                "type": "file" if item.is_file() else "dir"
-            })
-        return {
-            "path": str(full_path),
-            "files": all_files
-        }
+            all_files.append({"filename": item.name, "type": "file" if item.is_file() else "dir"})
+        return ToolResult(type="data", values=[{"path": str(full_path), "files": all_files}])
     except Exception as e:
-        return {"error": str(e)}
+        return ToolResult(type="data", values=[{"error": str(e)}])
 
 
-def edit_file_tool(path: str = ".", old_str: str = "", new_str: str = "") -> Dict[str, Any]:
+def edit_file_tool(path: str = ".", old_str: str = "", new_str: str = "") -> ToolResult:
     """
     Replaces first occurrence of old_str with new_str in file. If old_str is empty,
     create/overwrite file with new_str.
     :param path: The path to the file to edit.
     :param old_str: The string to replace.
     :param new_str: The string to replace with.
-    :return: A dictionary with the path to the file and the action taken.
+    :return: A tool result containing the path and action taken.
     """
     print(f"{GRAY}Editing file {path} {RESET}")
     try:
         full_path = _resolve_abs_path(path)
         if not full_path.exists() and old_str != "":
-            return {
-                "path": str(full_path),
-                "action": "path does not exist"
-            }
+            return ToolResult(type="data", values=[{"path": str(full_path), "action": "path does not exist"}])
         if old_str == "":
             full_path.write_text(new_str, encoding="utf-8")
-            return {
-                "path": str(full_path),
-                "action": f"Created file {path}"
-            }
+            return ToolResult(type="data", values=[{"path": str(full_path), "action": f"Created file {path}"}])
         original = full_path.read_text(encoding="utf-8")
         if original.find(old_str) == -1:
-            return {
-                "path": str(full_path),
-                "action": "old_str not found"
-            }
+            return ToolResult(type="data", values=[{"path": str(full_path), "action": "old_str not found"}])
         edited = original.replace(old_str, new_str, 1)
         full_path.write_text(edited, encoding="utf-8")
-        return {
-            "path": str(full_path),
-            "action": "Edited: old_str replaced by new_str successfully"
-        }
+        return ToolResult(type="data", values=[{"path": str(full_path), "action": "Edited: old_str replaced by new_str successfully"}])
     except Exception as e:
-        return {"error": str(e)}
+        return ToolResult(type="data", values=[{"error": str(e)}])
 
 
-def create_directory_tool(path: str = ".") -> Dict[str, Any]:
+def create_directory_tool(path: str = ".") -> ToolResult:
     """
     Creates a directory at the provided path. If parent directories do not exist,
     they are created automatically.
     :param path: The path to create.
-    :return: A dictionary with the path and the action taken.
+    :return: A tool result containing the path and action taken.
     """
     print(f"{GRAY}Creating directory {path} {RESET}")
     try:
         full_path = _resolve_abs_path(path)
         full_path.mkdir(parents=True, exist_ok=True)
-        return {
-            "path": str(full_path),
-            "action": "Directory created successfully"
-        }
+        return ToolResult(type="data", values=[{"path": str(full_path), "action": "Directory created successfully"}])
     except Exception as e:
-        return {"error": str(e)}
+        return ToolResult(type="data", values=[{"error": str(e)}])
 
 
-def git_status_tool() -> str:
+def git_status_tool() -> ToolResult:
     """
     Return git status --porcelain output for the current repository.
 
@@ -126,7 +104,7 @@ def git_status_tool() -> str:
     Use it to determine what files are modified/untracked/staged in a parse-friendly format.
 
     Returns:
-        The raw stdout from git status --porcelain (may be an empty string if clean).
+        A tool result containing the raw stdout from git status --porcelain.
 
     Raises:
         subprocess.CalledProcessError: If Git fails (e.g. repository not initialized).
@@ -135,10 +113,10 @@ def git_status_tool() -> str:
     print(f"{GRAY}Running git status {RESET}")
     cmd = ["git", "status", "--porcelain"]
     result = subprocess.run(cmd, check=True, text=True, capture_output=True)
-    return result.stdout
+    return ToolResult(type="data", values=[result.stdout])
 
 
-def git_add_tool(path: str) -> None:
+def git_add_tool(path: str) -> ToolResult:
     """
     Stage a specific path with git add -- path.
 
@@ -157,9 +135,10 @@ def git_add_tool(path: str) -> None:
     print(f"{GRAY}Running git add -- {path} {RESET}")
     cmd = ["git", "add", "--", path]
     subprocess.run(cmd, check=True, text=True)
+    return ToolResult(type="data", values=[])
 
 
-def git_diff_tool(path: Optional[str] = None) -> str:
+def git_diff_tool(path: Optional[str] = None) -> ToolResult:
     """
     Return a unified diff from git diff.
 
@@ -170,7 +149,7 @@ def git_diff_tool(path: Optional[str] = None) -> str:
         path: If provided, limits the diff to this path.
 
     Returns:
-        The raw stdout from the diff command (may be an empty string if no differences).
+        A tool result containing the raw stdout from the diff command.
 
     Raises:
         subprocess.CalledProcessError: If Git fails (e.g. repository not initialized).
@@ -183,10 +162,10 @@ def git_diff_tool(path: Optional[str] = None) -> str:
         cmd.append(path)
     else: print(f"{GRAY}Running git diff {RESET}")
     result = subprocess.run(cmd, check=True, text=True, capture_output=True)
-    return result.stdout
+    return ToolResult(type="data", values=[result.stdout])
 
 
-def git_commit_tool(message: str) -> None:
+def git_commit_tool(message: str) -> ToolResult:
     """
     Create a local Git commit using the Autom8 bot identity.
 
@@ -216,6 +195,7 @@ def git_commit_tool(message: str) -> None:
         "-m", message,
     ]
     subprocess.run(cmd, check=True, text=True)
+    return ToolResult(type="data", values=[])
 
 
 TOOL_REGISTRY = {

@@ -45,7 +45,8 @@ For direct usage without YAML, pass the model to `invoke(...)`:
 from autom8 import Agent
 
 agent = Agent()
-agent.invoke("Hello", model="openai/gpt-5")
+result = agent.invoke("Hello", model="openai/gpt-5")
+print(result.response)
 ```
 
 Set `model` when most calls should use the same model:
@@ -55,6 +56,22 @@ agent = Agent(model="openai/gpt-5")
 agent.invoke("Hello")
 agent.invoke("Hello", model="anthropic/claude-sonnet-4-5")
 ```
+
+`Agent.invoke(...)` returns an `AgentResult` containing the final response and any tool calls made while producing it.
+Every tool must return a `ToolResult`.
+Wrap existing tools before passing them to Autom8.
+Use `values` when a tool returns more than one value of the same type:
+```python
+from autom8 import ToolResult
+
+def generate_images(prompt: str):
+    image_paths = generate_and_save_images(prompt)
+    return ToolResult(type="image", values=image_paths)
+
+result = agent.invoke("Generate two images")
+images = result.results("image")
+```
+`results()` returns tool-results by type.
 
 Configure provider keys with LiteLLM's standard environment variables, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, or `GEMINI_API_KEY`.
 

@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from typing import Any, Dict, List
 
 from .llm_adapter import normalize
+from .results import AgentResult, ToolCall, ToolResult
 from .tools import TOOL_REGISTRY
 
 load_dotenv()
@@ -85,9 +86,7 @@ class Agent:
 
 
     def _format_prompt(self, prompt: List[Dict[str, Any]], role: str, input: Any, tool_calls=None):
-        message = {
-            "role": role
-        }
+        message = {"role": role}
         if isinstance(input, str):
             message["content"] = input.strip()
         else:
@@ -115,7 +114,7 @@ class Agent:
                model: str | None = None,
                image_url: str | None = None,
                response_format: Dict[str, Any] | None = None,
-               on_tool_call=None) -> str:
+               on_tool_call=None) -> AgentResult:
         if model is None:
             if self.default_model is None:
                 raise ValueError("No model specified")
@@ -129,16 +128,16 @@ class Agent:
         prompt = self.sessions[chat_id]
         user_content = self._build_user_content(message, image_url)
         self._format_prompt(prompt, "user", user_content)
-
+        tool_calls: List[ToolCall] = []
         while True:
             assistant_message = self._execute_llm_call(prompt, model, response_format)
-            tool_calls = assistant_message.tool_calls or []
-            if not tool_calls:
+            requested_tool_calls = assistant_message.tool_calls or []
+            if not requested_tool_calls:
                 self._format_prompt(prompt, "assistant", assistant_message.content)
-                return assistant_message.content  # type: ignore
+                return AgentResult(response=assistant_message.content, tool_calls=tool_calls)  # type: ignore
 
-            self._format_prompt(prompt, "assistant", assistant_message.content, tool_calls)
-            for call in tool_calls:
+            self._format_prompt(prompt, "assistant", assistant_message.content, requested_tool_calls)
+            for call in requested_tool_calls:
                 name = call.function.name  # type: ignore
                 args = json.loads(call.function.arguments or "{}")  # type: ignore
                 if on_tool_call is not None:
@@ -150,11 +149,14 @@ class Agent:
                     for param in signature.parameters
                     if param in args
                 }
-                resp = tool(**kwargs)
+                tool_result = tool(**kwargs)
+                if not isinstance(tool_result, ToolResult):
+                    raise TypeError(f"Tool '{name}' must return ToolResult, got {type(tool_result).__name__}")
+                tool_calls.append(ToolCall(name=name, arguments=args, result=tool_result)) # type: ignore
                 prompt.append({
                     "role": "tool",
                     "tool_call_id": call.id,
-                    "content": json.dumps(resp)
+                    "content": tool_result.to_json()
                 })
 
 
