@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from autom8 import Agent
+from autom8 import Agent, ToolResult
 
 
 def test_invoke_requires_model():
@@ -14,7 +14,9 @@ def test_invoke_requires_model():
 def test_invoke_records_user_and_assistant_messages(monkeypatch):
     agent = Agent(model="m", system_prompt="S", tool_registry={})
     monkeypatch.setattr(agent, "_execute_llm_call", lambda prompt, model, response_format: SimpleNamespace(content="A", tool_calls=None))
-    assert agent.invoke("Q") == "A"
+    result = agent.invoke("Q")
+    assert result.response == "A"
+    assert result.tool_calls == []
     assert agent.sessions[0] == [{"role": "system", "content": "S"}, {"role": "user", "content": "Q"}, {"role": "assistant", "content": "A"}]
 
 
@@ -25,3 +27,30 @@ def test_invoke_resets_session_when_instructions_change(monkeypatch):
     agent.invoke("two", instructions="T")
     assert agent.sessions[0][0] == {"role": "system", "content": "T"}
     assert [message["content"] for message in agent.sessions[0]] == ["T", "two", "A"]
+
+
+def test_invoke_returns_typed_tool_results(monkeypatch):
+    def generate_images(prompt):
+        return ToolResult(type="image", values=["/tmp/one.png", "/tmp/two.png"])
+    requested_tool_call = SimpleNamespace(id="1", function=SimpleNamespace(name="generate_images", arguments='{"prompt": "mountains"}'))
+    responses = iter([SimpleNamespace(content=None, tool_calls=[requested_tool_call]), SimpleNamespace(content="Done", tool_calls=None)])
+    agent = Agent(model="m", tool_registry={"generate_images": generate_images})
+    monkeypatch.setattr(agent, "_execute_llm_call", lambda prompt, model, response_format: next(responses))
+    result = agent.invoke("Generate two images")
+    assert result.response == "Done"
+    assert result.results("image") == ["/tmp/one.png", "/tmp/two.png"]
+    assert result.tool_calls[0].name == "generate_images"
+    assert result.tool_calls[0].arguments == {"prompt": "mountains"}
+    assert result.tool_calls[0].result == ToolResult(type="image", values=["/tmp/one.png", "/tmp/two.png"])
+    assert agent.sessions[0][-2]["content"] == '{"type": "image", "values": ["/tmp/one.png", "/tmp/two.png"]}'
+
+
+def test_invoke_rejects_invalid_tool_result(monkeypatch):
+    def search(query):
+        return {"urls": ["https://example.com"]}
+    requested_tool_call = SimpleNamespace(id="1", function=SimpleNamespace(name="search", arguments='{"query": "example"}'))
+    response = SimpleNamespace(content=None, tool_calls=[requested_tool_call])
+    agent = Agent(model="m", tool_registry={"search": search})
+    monkeypatch.setattr(agent, "_execute_llm_call", lambda prompt, model, response_format: response)
+    with pytest.raises(TypeError, match="Tool 'search' must return ToolResult, got dict"):
+        agent.invoke("Search")
