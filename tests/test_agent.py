@@ -30,8 +30,12 @@ def test_invoke_resets_session_when_instructions_change(monkeypatch):
 
 
 def test_invoke_returns_typed_tool_results(monkeypatch):
+    tool_result = ToolResult(type="image",
+                             values=["/tmp/one.png", "/tmp/two.png"],
+                             model_output={"status": "success", "message": "The images will be delivered separately."})
+
     def generate_images(prompt):
-        return ToolResult(type="image", values=["/tmp/one.png", "/tmp/two.png"])
+        return tool_result
     requested_tool_call = SimpleNamespace(id="1", function=SimpleNamespace(name="generate_images", arguments='{"prompt": "mountains"}'))
     responses = iter([SimpleNamespace(content=None, tool_calls=[requested_tool_call]), SimpleNamespace(content="Done", tool_calls=None)])
     agent = Agent(model="m", tool_registry={"generate_images": generate_images})
@@ -41,8 +45,9 @@ def test_invoke_returns_typed_tool_results(monkeypatch):
     assert result.results("image") == ["/tmp/one.png", "/tmp/two.png"]
     assert result.tool_calls[0].name == "generate_images"
     assert result.tool_calls[0].arguments == {"prompt": "mountains"}
-    assert result.tool_calls[0].result == ToolResult(type="image", values=["/tmp/one.png", "/tmp/two.png"])
-    assert agent.sessions[0][-2]["content"] == '{"type": "image", "values": ["/tmp/one.png", "/tmp/two.png"]}'
+    assert result.tool_calls[0].result == tool_result
+    assert agent.sessions[0][-2]["content"] == '{"status": "success", "message": "The images will be delivered separately."}'
+    assert "/tmp/one.png" not in agent.sessions[0][-2]["content"]
 
 
 def test_invoke_rejects_invalid_tool_result(monkeypatch):

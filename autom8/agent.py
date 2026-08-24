@@ -156,7 +156,7 @@ class Agent:
                 prompt.append({
                     "role": "tool",
                     "tool_call_id": call.id,
-                    "content": tool_result.to_json()
+                    "content": tool_result.to_model_json()
                 })
 
 

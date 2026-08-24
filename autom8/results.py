@@ -7,12 +7,16 @@ from typing import Any
 class ToolResult:
     type: str
     values: list[Any]
+    model_output: Any
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict())
+
+    def to_model_json(self) -> str:
+        return json.dumps(self.model_output)
 
 
 @dataclass
