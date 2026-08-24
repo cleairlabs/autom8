@@ -31,9 +31,11 @@ def read_file_tool(filename: str = ".") -> ToolResult:
         full_path = _resolve_abs_path(filename)
         with open(str(full_path), "r") as f:
             content = f.read()
-        return ToolResult(type="data", values=[{"file_path": str(full_path), "content": content}])
+        result = {"file_path": str(full_path), "content": content}
+        return ToolResult(type="data", values=[result], model_output=result)
     except Exception as e:
-        return ToolResult(type="data", values=[{"error": str(e)}])
+        result = {"error": str(e)}
+        return ToolResult(type="data", values=[result], model_output=result)
 
 
 def list_files_tool(path: str = ".") -> ToolResult:
@@ -48,9 +50,11 @@ def list_files_tool(path: str = ".") -> ToolResult:
         all_files = []
         for item in full_path.iterdir():
             all_files.append({"filename": item.name, "type": "file" if item.is_file() else "dir"})
-        return ToolResult(type="data", values=[{"path": str(full_path), "files": all_files}])
+        result = {"path": str(full_path), "files": all_files}
+        return ToolResult(type="data", values=[result], model_output=result)
     except Exception as e:
-        return ToolResult(type="data", values=[{"error": str(e)}])
+        result = {"error": str(e)}
+        return ToolResult(type="data", values=[result], model_output=result)
 
 
 def edit_file_tool(path: str = ".", old_str: str = "", new_str: str = "") -> ToolResult:
@@ -66,18 +70,23 @@ def edit_file_tool(path: str = ".", old_str: str = "", new_str: str = "") -> Too
     try:
         full_path = _resolve_abs_path(path)
         if not full_path.exists() and old_str != "":
-            return ToolResult(type="data", values=[{"path": str(full_path), "action": "path does not exist"}])
+            result = {"path": str(full_path), "action": "path does not exist"}
+            return ToolResult(type="data", values=[result], model_output=result)
         if old_str == "":
             full_path.write_text(new_str, encoding="utf-8")
-            return ToolResult(type="data", values=[{"path": str(full_path), "action": f"Created file {path}"}])
+            result = {"path": str(full_path), "action": f"Created file {path}"}
+            return ToolResult(type="data", values=[result], model_output=result)
         original = full_path.read_text(encoding="utf-8")
         if original.find(old_str) == -1:
-            return ToolResult(type="data", values=[{"path": str(full_path), "action": "old_str not found"}])
+            result = {"path": str(full_path), "action": "old_str not found"}
+            return ToolResult(type="data", values=[result], model_output=result)
         edited = original.replace(old_str, new_str, 1)
         full_path.write_text(edited, encoding="utf-8")
-        return ToolResult(type="data", values=[{"path": str(full_path), "action": "Edited: old_str replaced by new_str successfully"}])
+        result = {"path": str(full_path), "action": "Edited: old_str replaced by new_str successfully"}
+        return ToolResult(type="data", values=[result], model_output=result)
     except Exception as e:
-        return ToolResult(type="data", values=[{"error": str(e)}])
+        result = {"error": str(e)}
+        return ToolResult(type="data", values=[result], model_output=result)
 
 
 def create_directory_tool(path: str = ".") -> ToolResult:
@@ -91,9 +100,11 @@ def create_directory_tool(path: str = ".") -> ToolResult:
     try:
         full_path = _resolve_abs_path(path)
         full_path.mkdir(parents=True, exist_ok=True)
-        return ToolResult(type="data", values=[{"path": str(full_path), "action": "Directory created successfully"}])
+        result = {"path": str(full_path), "action": "Directory created successfully"}
+        return ToolResult(type="data", values=[result], model_output=result)
     except Exception as e:
-        return ToolResult(type="data", values=[{"error": str(e)}])
+        result = {"error": str(e)}
+        return ToolResult(type="data", values=[result], model_output=result)
 
 
 def git_status_tool() -> ToolResult:
@@ -113,7 +124,7 @@ def git_status_tool() -> ToolResult:
     print(f"{GRAY}Running git status {RESET}")
     cmd = ["git", "status", "--porcelain"]
     result = subprocess.run(cmd, check=True, text=True, capture_output=True)
-    return ToolResult(type="data", values=[result.stdout])
+    return ToolResult(type="data", values=[result.stdout], model_output=result.stdout)
 
 
 def git_add_tool(path: str) -> ToolResult:
@@ -135,7 +146,7 @@ def git_add_tool(path: str) -> ToolResult:
     print(f"{GRAY}Running git add -- {path} {RESET}")
     cmd = ["git", "add", "--", path]
     subprocess.run(cmd, check=True, text=True)
-    return ToolResult(type="data", values=[])
+    return ToolResult(type="data", values=[], model_output={"status": "success", "message": f"Staged {path}."})
 
 
 def git_diff_tool(path: Optional[str] = None) -> ToolResult:
@@ -162,7 +173,7 @@ def git_diff_tool(path: Optional[str] = None) -> ToolResult:
         cmd.append(path)
     else: print(f"{GRAY}Running git diff {RESET}")
     result = subprocess.run(cmd, check=True, text=True, capture_output=True)
-    return ToolResult(type="data", values=[result.stdout])
+    return ToolResult(type="data", values=[result.stdout], model_output=result.stdout)
 
 
 def git_commit_tool(message: str) -> ToolResult:
@@ -195,7 +206,7 @@ def git_commit_tool(message: str) -> ToolResult:
         "-m", message,
     ]
     subprocess.run(cmd, check=True, text=True)
-    return ToolResult(type="data", values=[])
+    return ToolResult(type="data", values=[], model_output={"status": "success", "message": "Commit created."})
 
 
 TOOL_REGISTRY = {

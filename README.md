@@ -66,12 +66,16 @@ from autom8 import ToolResult
 
 def generate_images(prompt: str):
     image_paths = generate_and_save_images(prompt)
-    return ToolResult(type="image", values=image_paths)
+    return ToolResult(type="image",
+                      values=image_paths,
+                      model_output={"status": "success", "message": "The images will be delivered separately."})
 
 result = agent.invoke("Generate two images")
 images = result.results("image")
 ```
-`results()` returns tool-results by type.
+`values` are returned to the calling application through `results()`.
+`model_output` is the only tool-result payload added to the LLM conversation.
+Do not put sensitive or application-only data in `model_output`.
 
 Configure provider keys with LiteLLM's standard environment variables, for example `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, or `GEMINI_API_KEY`.
 
