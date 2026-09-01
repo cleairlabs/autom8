@@ -1,4 +1,3 @@
-from functools import wraps
 from types import SimpleNamespace
 
 import pytest
@@ -13,13 +12,15 @@ def test_invoke_requires_model():
         agent.invoke("hello")
 
 
-def test_from_config_decorates_only_builtin_tools():
+def test_from_config_decorates_only_builtin_tools(monkeypatch):
     def custom_tool() -> ToolResult:
         return ToolResult(type="data", values=[], model_output={})
 
+    decorated_calls = []
+
     def tool_decorator(tool):
-        @wraps(tool)
         def decorated_tool(*args, **kwargs):
+            decorated_calls.append(kwargs)
             return tool(*args, **kwargs)
         return decorated_tool
 
@@ -31,8 +32,15 @@ def test_from_config_decorates_only_builtin_tools():
         "tool_choice": "auto",
     }
     agent = Agent.from_config(config, builtin_tool_decorator=tool_decorator)
+    read_file_schema = next(tool_schema for tool_schema in agent.tools if tool_schema["function"]["name"] == "read_file")
+    requested_tool_call = SimpleNamespace(id="1", function=SimpleNamespace(name="read_file", arguments='{"filename": "missing.txt"}'))
+    responses = iter([SimpleNamespace(content=None, tool_calls=[requested_tool_call]), SimpleNamespace(content="Done", tool_calls=None)])
+    monkeypatch.setattr(agent, "_execute_llm_call", lambda prompt, model, response_format: next(responses))
+    agent.invoke("Read the file")
+
     assert agent.tool_registry["read_file"] is not TOOL_REGISTRY["read_file"]
-    assert agent.tool_registry["read_file"].__wrapped__ is TOOL_REGISTRY["read_file"]
+    assert read_file_schema["function"]["parameters"]["required"] == ["filename"]
+    assert decorated_calls == [{"filename": "missing.txt"}]
     assert agent.tool_registry["custom"] is custom_tool
 
 

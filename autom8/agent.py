@@ -24,6 +24,7 @@ class Agent:
     ):
         self.default_model = model
         self.tool_registry = dict(tool_registry)
+        self._tool_signatures = {tool_name: inspect.signature(tool) for tool_name, tool in tool_registry.items()}
         if builtin_tool_decorator is not None:
             for tool_name, tool in tool_registry.items():
                 if TOOL_REGISTRY.get(tool_name) is tool:
@@ -57,7 +58,7 @@ class Agent:
     def _build_tools(self) -> List[Dict[str, Any]]:
         tools = []
         for tool_name, tool in self.tool_registry.items():
-            signature = inspect.signature(tool)
+            signature = self._tool_signatures[tool_name]
             properties = {name: {"type": "string"} for name in signature.parameters}
             tools.append({
                 "type": "function",
@@ -149,7 +150,7 @@ class Agent:
                 if on_tool_call is not None:
                     on_tool_call(name, args)
                 tool = self.tool_registry[name] # type: ignore
-                signature = inspect.signature(tool)
+                signature = self._tool_signatures[name] # type: ignore
                 kwargs = {
                     param: args.get(param)
                     for param in signature.parameters
