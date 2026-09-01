@@ -2,6 +2,12 @@ from pathlib import Path
 
 from pyfiglet import Figlet
 
+
+# IMPORTAND: Run pip install "autom8[dev]" for this to work.
+from dotenv import load_dotenv
+load_dotenv()
+
+
 try:
     import readline  # Enables line editing (e.g., arrow keys) on compatible terminals
 except ImportError:

@@ -3,12 +3,45 @@ from types import SimpleNamespace
 import pytest
 
 from autom8 import Agent, ToolResult
+from autom8.tools import TOOL_REGISTRY
 
 
 def test_invoke_requires_model():
     agent = Agent(tool_registry={})
     with pytest.raises(ValueError, match="No model specified"):
         agent.invoke("hello")
+
+
+def test_from_config_decorates_only_builtin_tools(monkeypatch):
+    def custom_tool() -> ToolResult:
+        return ToolResult(type="data", values=[], model_output={})
+
+    decorated_calls = []
+
+    def tool_decorator(tool):
+        def decorated_tool(*args, **kwargs):
+            decorated_calls.append(kwargs)
+            return tool(*args, **kwargs)
+        return decorated_tool
+
+    config = {
+        "model": "m",
+        "system_prompt": "S",
+        "tool_registry": {"read_file": TOOL_REGISTRY["read_file"], "custom": custom_tool},
+        "max_completion_tokens": 2000,
+        "tool_choice": "auto",
+    }
+    agent = Agent.from_config(config, builtin_tool_decorator=tool_decorator)
+    read_file_schema = next(tool_schema for tool_schema in agent.tools if tool_schema["function"]["name"] == "read_file")
+    requested_tool_call = SimpleNamespace(id="1", function=SimpleNamespace(name="read_file", arguments='{"filename": "missing.txt"}'))
+    responses = iter([SimpleNamespace(content=None, tool_calls=[requested_tool_call]), SimpleNamespace(content="Done", tool_calls=None)])
+    monkeypatch.setattr(agent, "_execute_llm_call", lambda prompt, model, response_format: next(responses))
+    agent.invoke("Read the file")
+
+    assert agent.tool_registry["read_file"] is not TOOL_REGISTRY["read_file"]
+    assert read_file_schema["function"]["parameters"]["required"] == ["filename"]
+    assert decorated_calls == [{"filename": "missing.txt"}]
+    assert agent.tool_registry["custom"] is custom_tool
 
 
 def test_invoke_records_user_and_assistant_messages(monkeypatch):

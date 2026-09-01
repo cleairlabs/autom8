@@ -129,7 +129,7 @@ Autom8 does not resolve custom tools relative to the YAML file.
 If your YAML file and custom tool module live in the same directory, run Python from that directory so the module is importable.
 You may need to add an `__init__.py` file if your custom tools live in a package directory.
 
-## Predefined tools
+## Built-in tools
 
 | Tool name | Arguments | Description |
 | --- | --- | --- |
@@ -141,3 +141,20 @@ You may need to add an `__init__.py` file if your custom tools live in a package
 | `git_add` | `path: str` | Stage a specific path with `git add -- path`. |
 | `git_diff` | `path: str` | Return `git diff`, optionally limited to one path. |
 | `git_commit` | `message: str` | Create a local git commit. |
+
+
+## Observability
+Pass `builtin_tool_decorator` to decorate Autom8's built-in tools.
+For example, with [cleair](https://docs.cleair.ai/):
+```bash
+pip install "cleair @ git+https://github.com/cleairlabs/cleair.git@main#subdirectory=sdks/python"
+```
+
+```python
+import cleair
+from autom8 import Agent, load_agent_config
+
+cleair.init(cleair_api_key="<api-key>")
+agent_config = load_agent_config("agent_config.yaml")
+agent = Agent.from_config(agent_config, builtin_tool_decorator=cleair.observe(as_type=cleair.type.TOOL))
+```

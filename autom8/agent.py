@@ -2,14 +2,14 @@ import inspect
 import json
 
 from litellm import completion
-from dotenv import load_dotenv
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from .llm_adapter import normalize
 from .results import AgentResult, ToolCall, ToolResult
 from .tools import TOOL_REGISTRY
 
-load_dotenv()
+# Type def.
+ToolDecorator = Callable[[Callable[..., Any]], Callable[..., Any]]
 
 
 class Agent:
@@ -20,9 +20,15 @@ class Agent:
         tool_registry: Dict[str, Any] = TOOL_REGISTRY,
         max_completion_tokens: int = 2000,
         tool_choice: str = "auto",
+        builtin_tool_decorator: ToolDecorator | None = None,
     ):
         self.default_model = model
-        self.tool_registry = tool_registry
+        self.tool_registry = dict(tool_registry)
+        self._tool_signatures = {tool_name: inspect.signature(tool) for tool_name, tool in tool_registry.items()}
+        if builtin_tool_decorator is not None:
+            for tool_name, tool in tool_registry.items():
+                if TOOL_REGISTRY.get(tool_name) is tool:
+                    self.tool_registry[tool_name] = builtin_tool_decorator(tool)
         self.max_completion_tokens = max_completion_tokens
         self.tool_choice = tool_choice
         self.tools = self._build_tools()
@@ -32,12 +38,13 @@ class Agent:
 
 
     @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "Agent":
+    def from_config(cls, config: Dict[str, Any], builtin_tool_decorator: ToolDecorator | None = None) -> "Agent":
         agent = cls(model=config["model"],
                     system_prompt=config["system_prompt"],
                     tool_registry=config["tool_registry"],
                     max_completion_tokens=config["max_completion_tokens"],
-                    tool_choice=config["tool_choice"])
+                    tool_choice=config["tool_choice"],
+                    builtin_tool_decorator=builtin_tool_decorator)
         return agent
 
 
@@ -51,7 +58,7 @@ class Agent:
     def _build_tools(self) -> List[Dict[str, Any]]:
         tools = []
         for tool_name, tool in self.tool_registry.items():
-            signature = inspect.signature(tool)
+            signature = self._tool_signatures[tool_name]
             properties = {name: {"type": "string"} for name in signature.parameters}
             tools.append({
                 "type": "function",
@@ -143,7 +150,7 @@ class Agent:
                 if on_tool_call is not None:
                     on_tool_call(name, args)
                 tool = self.tool_registry[name] # type: ignore
-                signature = inspect.signature(tool)
+                signature = self._tool_signatures[name] # type: ignore
                 kwargs = {
                     param: args.get(param)
                     for param in signature.parameters
