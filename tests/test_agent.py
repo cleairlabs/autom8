@@ -1,14 +1,39 @@
+from functools import wraps
 from types import SimpleNamespace
 
 import pytest
 
 from autom8 import Agent, ToolResult
+from autom8.tools import TOOL_REGISTRY
 
 
 def test_invoke_requires_model():
     agent = Agent(tool_registry={})
     with pytest.raises(ValueError, match="No model specified"):
         agent.invoke("hello")
+
+
+def test_from_config_decorates_only_builtin_tools():
+    def custom_tool() -> ToolResult:
+        return ToolResult(type="data", values=[], model_output={})
+
+    def tool_decorator(tool):
+        @wraps(tool)
+        def decorated_tool(*args, **kwargs):
+            return tool(*args, **kwargs)
+        return decorated_tool
+
+    config = {
+        "model": "m",
+        "system_prompt": "S",
+        "tool_registry": {"read_file": TOOL_REGISTRY["read_file"], "custom": custom_tool},
+        "max_completion_tokens": 2000,
+        "tool_choice": "auto",
+    }
+    agent = Agent.from_config(config, builtin_tool_decorator=tool_decorator)
+    assert agent.tool_registry["read_file"] is not TOOL_REGISTRY["read_file"]
+    assert agent.tool_registry["read_file"].__wrapped__ is TOOL_REGISTRY["read_file"]
+    assert agent.tool_registry["custom"] is custom_tool
 
 
 def test_invoke_records_user_and_assistant_messages(monkeypatch):
