@@ -20,6 +20,7 @@ class Agent:
         tool_registry: Dict[str, Any] = TOOL_REGISTRY,
         max_completion_tokens: int = 2000,
         tool_choice: str = "auto",
+        parallel_tool_calls: bool | None = None,
         builtin_tool_decorator: ToolDecorator | None = None,
     ):
         self.default_model = model
@@ -31,6 +32,7 @@ class Agent:
                     self.tool_registry[tool_name] = builtin_tool_decorator(tool)
         self.max_completion_tokens = max_completion_tokens
         self.tool_choice = tool_choice
+        self.parallel_tool_calls = parallel_tool_calls
         self.tools = self._build_tools()
         self.SYSTEM_PROMPT = system_prompt
         self.sessions: Dict[int, List[Dict[str, Any]]] = {}
@@ -44,6 +46,7 @@ class Agent:
                     tool_registry=config["tool_registry"],
                     max_completion_tokens=config["max_completion_tokens"],
                     tool_choice=config["tool_choice"],
+                    parallel_tool_calls=config.get("parallel_tool_calls"),
                     builtin_tool_decorator=builtin_tool_decorator)
         return agent
 
@@ -85,6 +88,8 @@ class Agent:
         if self.tools:
             request_options["tools"] = self.tools
             request_options["tool_choice"] = self.tool_choice
+            if self.parallel_tool_calls is not None:
+                request_options["parallel_tool_calls"] = self.parallel_tool_calls
         if response_format is not None:
             request_options["response_format"] = response_format
 
