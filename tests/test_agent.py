@@ -30,6 +30,7 @@ def test_from_config_decorates_only_builtin_tools(monkeypatch):
         "tool_registry": {"read_file": TOOL_REGISTRY["read_file"], "custom": custom_tool},
         "max_completion_tokens": 2000,
         "tool_choice": "auto",
+        "parallel_tool_calls": None,
     }
     agent = Agent.from_config(config, builtin_tool_decorator=tool_decorator)
     read_file_schema = next(tool_schema for tool_schema in agent.tools if tool_schema["function"]["name"] == "read_file")
@@ -42,6 +43,14 @@ def test_from_config_decorates_only_builtin_tools(monkeypatch):
     assert read_file_schema["function"]["parameters"]["required"] == ["filename"]
     assert decorated_calls == [{"filename": "missing.txt"}]
     assert agent.tool_registry["custom"] is custom_tool
+
+
+def test_execute_llm_call_disables_parallel_tool_calls(monkeypatch):
+    request_options = {}
+    monkeypatch.setattr("autom8.agent.completion", lambda **kwargs: request_options.update(kwargs) or SimpleNamespace(choices=[SimpleNamespace(message="A")]))
+    agent = Agent(model="m", tool_registry={"custom": lambda: None}, parallel_tool_calls=False)
+    agent._execute_llm_call([], "m", None)
+    assert request_options["parallel_tool_calls"] is False
 
 
 def test_invoke_records_user_and_assistant_messages(monkeypatch):
