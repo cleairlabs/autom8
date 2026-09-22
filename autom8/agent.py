@@ -22,6 +22,7 @@ class Agent:
         tool_choice: str = "auto",
         parallel_tool_calls: bool | None = None,
         builtin_tool_decorator: ToolDecorator | None = None,
+        reasoning_effort: str | None = None,
     ):
         self.default_model = model
         self.tool_registry = dict(tool_registry)
@@ -32,6 +33,7 @@ class Agent:
                     self.tool_registry[tool_name] = builtin_tool_decorator(tool)
         self.max_completion_tokens = max_completion_tokens
         self.tool_choice = tool_choice
+        self.reasoning_effort = reasoning_effort
         self.parallel_tool_calls = parallel_tool_calls
         self.tools = self._build_tools()
         self.SYSTEM_PROMPT = system_prompt
@@ -46,6 +48,7 @@ class Agent:
                     tool_registry=config["tool_registry"],
                     max_completion_tokens=config["max_completion_tokens"],
                     tool_choice=config["tool_choice"],
+                    reasoning_effort=config.get("reasoning_effort"),
                     parallel_tool_calls=config.get("parallel_tool_calls"),
                     builtin_tool_decorator=builtin_tool_decorator)
         return agent
@@ -92,6 +95,8 @@ class Agent:
                 request_options["parallel_tool_calls"] = self.parallel_tool_calls
         if response_format is not None:
             request_options["response_format"] = response_format
+        if self.reasoning_effort is not None:
+            request_options["reasoning_effort"] = self.reasoning_effort
 
         response = completion(**normalize(request_options))  # type: ignore
         return response.choices[0].message # type: ignore

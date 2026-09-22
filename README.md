@@ -86,6 +86,7 @@ For local development setup, see [CONTRIBUTING.md](CONTRIBUTING.md).
 ```yaml
 defaults:
   model: provider/model-name
+  reasoning_effort: string
   max_completion_tokens: integer
   tool_choice: string
   parallel_tool_calls: boolean
