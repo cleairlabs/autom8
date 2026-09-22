@@ -89,6 +89,7 @@ defaults:
   reasoning_effort: string
   max_completion_tokens: integer
   tool_choice: string
+  parallel_tool_calls: boolean
 
 custom_tools:
   <tool_name>: package.module:function_name
