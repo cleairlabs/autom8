@@ -78,4 +78,5 @@ def load_agent_config(path: str, agent_id: str | None = None) -> Dict[str, Any]:
         "tool_registry": tool_registry,
         "max_completion_tokens": defaults.get("max_completion_tokens", 2000),
         "tool_choice": defaults.get("tool_choice", "auto"),
+        "reasoning_effort": defaults.get("reasoning_effort"),
     }

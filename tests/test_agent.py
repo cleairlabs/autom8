@@ -12,6 +12,19 @@ def test_invoke_requires_model():
         agent.invoke("hello")
 
 
+def test_execute_llm_call_forwards_optional_reasoning_effort(monkeypatch):
+    captured_request_options = []
+    def fake_completion(**request_options):
+        captured_request_options.append(request_options)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="A", tool_calls=None))])
+    monkeypatch.setattr("autom8.agent.completion", fake_completion)
+    config = {"model": "m", "system_prompt": "S", "tool_registry": {}, "max_completion_tokens": 2000, "tool_choice": "auto", "reasoning_effort": "medium"}
+    Agent.from_config(config).invoke("Q")
+    Agent(model="m", tool_registry={}).invoke("Q")
+    assert captured_request_options[0]["reasoning_effort"] == "medium"
+    assert "reasoning_effort" not in captured_request_options[1]
+
+
 def test_from_config_decorates_only_builtin_tools(monkeypatch):
     def custom_tool() -> ToolResult:
         return ToolResult(type="data", values=[], model_output={})
