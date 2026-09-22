@@ -146,17 +146,11 @@ You may need to add an `__init__.py` file if your custom tools live in a package
 
 
 ## Observability
-Pass `builtin_tool_decorator` to decorate Autom8's built-in tools.
-For example, with [cleair](https://docs.cleair.ai/):
-```bash
-pip install "cleair @ git+https://github.com/cleairlabs/cleair.git@main#subdirectory=sdks/python"
-```
+Pass `builtin_tool_decorator` to decorate Autom8's built-in tools. 
 
 ```python
-import cleair
 from autom8 import Agent, load_agent_config
 
-cleair.init(cleair_api_key="<api-key>")
 agent_config = load_agent_config("agent_config.yaml")
-agent = Agent.from_config(agent_config, builtin_tool_decorator=cleair.observe(as_type=cleair.type.TOOL))
+agent = Agent.from_config(agent_config, builtin_tool_decorator=<decorator>)
 ```
