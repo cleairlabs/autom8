@@ -71,6 +71,13 @@ def load_agent_config(path: str, agent_id: str | None = None) -> Dict[str, Any]:
     if not system_prompt:
         raise ValueError("Each agent in agent_config.yaml must define system_prompt")
 
+    hosted_tools = selected_agent.get("hosted_tools", defaults.get("hosted_tools", []))
+    if not isinstance(hosted_tools, list):
+        raise ValueError("hosted_tools must be a list")
+    for hosted_tool in hosted_tools:
+        if not isinstance(hosted_tool, dict) or not isinstance(hosted_tool.get("type"), str) or not hosted_tool["type"]:
+            raise ValueError("Every hosted tool must be a mapping with a non-empty string type")
+
     return {
         "id": selected_agent.get("id"),
         "model": selected_agent.get("model", defaults.get("model", "openai/gpt-5")),
@@ -80,4 +87,5 @@ def load_agent_config(path: str, agent_id: str | None = None) -> Dict[str, Any]:
         "tool_choice": defaults.get("tool_choice", "auto"),
         "reasoning_effort": defaults.get("reasoning_effort"),
         "parallel_tool_calls": defaults.get("parallel_tool_calls"),
+        "hosted_tools": [dict(hosted_tool) for hosted_tool in hosted_tools],
     }
