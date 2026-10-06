@@ -9,7 +9,7 @@
 
 
 Autom8 is a minimal framework for building AI agents.
-It uses LiteLLM for model calls, so models are selected with provider-prefixed names like `openai/gpt-5`, `anthropic/claude-sonnet-4-5`, `mistral/mistral-large-latest`, or `gemini/gemini-2.0-flash`.
+It uses LiteLLM's Responses interface for model calls, so models are selected with provider-prefixed names like `openai/gpt-5`, `anthropic/claude-sonnet-4-5`, `mistral/mistral-large-latest`, or `gemini/gemini-2.0-flash`.
 
 ## Install from GitHub
 
@@ -57,7 +57,8 @@ agent.invoke("Hello")
 agent.invoke("Hello", model="anthropic/claude-sonnet-4-5")
 ```
 
-`Agent.invoke(...)` returns an `AgentResult` containing the final response and any tool calls made while producing it.
+`Agent.invoke(...)` returns an `AgentResult` containing the final response and any local tool calls made while producing it.
+The `response_items` field contains the typed Responses output items, including hosted-tool calls and citation annotations.
 Every tool must return a `ToolResult`.
 Wrap existing tools before passing them to Autom8.
 Use `values` when a tool returns more than one value of the same type:
@@ -90,6 +91,8 @@ defaults:
   max_completion_tokens: integer
   tool_choice: string
   parallel_tool_calls: boolean
+  hosted_tools:
+    - type: provider-hosted-tool-type
 
 custom_tools:
   <tool_name>: package.module:function_name
@@ -100,11 +103,27 @@ agents:
     system_prompt: string
     tool_names:
       - string
+    hosted_tools:
+      - type: provider-hosted-tool-type
 ```
 
-Pass `response_format` to `Agent.invoke(...)` when a single call should use structured output.
-The value is passed through to LiteLLM.
+`tool_names` selects Python functions that Autom8 executes locally.
+`hosted_tools` contains tools that the model provider executes, for example:
 
+```yaml
+agents:
+  - id: researcher
+    model: openai/gpt-5
+    system_prompt: Research the question and cite reliable sources.
+    hosted_tools:
+      - type: web_search
+```
+Autom8 checks only that each hosted tool is a mapping with a non-empty `type`, then passes it to LiteLLM unchanged.
+Hosted-tools availability depend on the selected provider and model, unsupported configurations raise a LiteLLM or provider error directly.
+
+
+Pass `response_format` to `Agent.invoke(...)` when a single call should use structured output.
+Autom8 passes it to LiteLLM as the Responses text format.
 ```python
 response_format = {
     "type": "json_schema",
@@ -131,7 +150,7 @@ Autom8 does not resolve custom tools relative to the YAML file.
 If your YAML file and custom tool module live in the same directory, run Python from that directory so the module is importable.
 You may need to add an `__init__.py` file if your custom tools live in a package directory.
 
-## Built-in tools
+## Autom8 Built-in tools
 
 | Tool name | Arguments | Description |
 | --- | --- | --- |

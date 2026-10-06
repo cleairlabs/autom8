@@ -1,5 +1,5 @@
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
@@ -30,6 +30,7 @@ class ToolCall:
 class AgentResult:
     response: str
     tool_calls: list[ToolCall]
+    response_items: list[dict[str, Any]] = field(default_factory=list)
 
     def results(self, result_type: str) -> list[Any]:
         values = []
