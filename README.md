@@ -8,7 +8,7 @@
 [![Pytests](https://github.com/cleairlabs/autom8/actions/workflows/pytests.yml/badge.svg)](https://github.com/cleairlabs/autom8/actions/workflows/pytests.yml)
 
 
-Autom8 is a minimal framework for building AI agents.
+Autom8 is a framework for building AI agents.
 It uses LiteLLM's Responses interface for model calls, so models are selected with provider-prefixed names like `openai/gpt-5`, `anthropic/claude-sonnet-4-5`, `mistral/mistral-large-latest`, or `gemini/gemini-2.0-flash`.
 
 ## Install from GitHub
@@ -18,7 +18,8 @@ Install directly from GitHub with `pip`:
 pip install git+https://github.com/cleairlabs/autom8.git
 ```
 
-The `pip` install provides the reusable library code only. If you install from GitHub, create your own script and pass an explicit path to your YAML config when calling `load_agent_config(...)`. If you clone the repository locally, a runnable example script and sample config are included in `examples/`.
+If you install from GitHub, create your own script and pass an explicit path to your YAML config when calling `load_agent_config(...)`.
+If you clone the repository locally, a runnable example script and sample config are included in `examples/`.
 
 Example:
 ```python
@@ -59,6 +60,10 @@ agent.invoke("Hello", model="anthropic/claude-sonnet-4-5")
 
 `Agent.invoke(...)` returns an `AgentResult` containing the final response and any local tool calls made while producing it.
 The `response_items` field contains the typed Responses output items, including hosted-tool calls and citation annotations.
+`cost_usd` is the LiteLLM-provided or calculated cost of all model calls made for that answer and `conversation_cost_usd` is the running total for its `chat_id`.
+Both are in USD and are `None` if any required model-call cost is unavailable.
+Conversation totals reset with `Agent.reset(chat_id)` or when the conversation's instructions change.
+These totals cover LiteLLM model calls, not costs incurred by locally executed tools, and are held in memory with the conversation history.
 Every tool must return a `ToolResult`.
 Wrap existing tools before passing them to Autom8.
 Use `values` when a tool returns more than one value of the same type:

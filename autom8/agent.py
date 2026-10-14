@@ -1,7 +1,7 @@
 import inspect
 import json
 
-from litellm import responses
+from litellm import completion_cost, responses
 from typing import Any, Callable, Dict, List
 
 from .results import AgentResult, ToolCall, ToolResult
@@ -40,6 +40,7 @@ class Agent:
         self.SYSTEM_PROMPT = system_prompt
         self.sessions: Dict[int, List[Dict[str, Any]]] = {}
         self.session_instructions: Dict[int, str] = {}
+        self.session_costs: Dict[int, float | None] = {}
 
 
     @classmethod
@@ -147,20 +148,32 @@ class Agent:
         if current_instructions != active_instructions or chat_id not in self.sessions:
             self.sessions[chat_id] = self._reset_prompt(active_instructions)
             self.session_instructions[chat_id] = active_instructions
+            self.session_costs[chat_id] = 0.0
 
         prompt = self.sessions[chat_id]
         user_content = self._build_user_content(message, image_url)
         self._format_prompt(prompt, "user", user_content)
         tool_calls: List[ToolCall] = []
         response_items: List[Dict[str, Any]] = []
+        cost_usd: float | None = 0.0
         while True:
             response = self._execute_llm_call(prompt, model, response_format)
+            response_cost = (getattr(response, "_hidden_params", None) or {}).get("response_cost")
+            if response_cost is None and getattr(response, "usage", None) is not None:
+                try:
+                    response_cost = completion_cost(completion_response=response, model=model)
+                except Exception:
+                    response_cost = None
+            cost_usd = cost_usd + response_cost if cost_usd is not None and response_cost is not None else None
+            conversation_cost = self.session_costs[chat_id]
+            self.session_costs[chat_id] = conversation_cost + response_cost if conversation_cost is not None and response_cost is not None else None
             current_response_items = [self._serialize_response_item(response_item) for response_item in response.output] # type: ignore
             response_items.extend(current_response_items)
             prompt.extend(current_response_items)
             requested_tool_calls = [response_item for response_item in current_response_items if response_item.get("type") == "function_call"]
             if not requested_tool_calls:
-                return AgentResult(response=response.output_text, tool_calls=tool_calls, response_items=response_items) # type: ignore
+                return AgentResult(response=response.output_text, tool_calls=tool_calls, response_items=response_items,
+                                   cost_usd=cost_usd, conversation_cost_usd=self.session_costs[chat_id]) # type: ignore
 
             for call in requested_tool_calls:
                 name = call["name"]
@@ -188,3 +201,4 @@ class Agent:
     def reset(self, chat_id: int) -> None:
         self.sessions.pop(chat_id, None)
         self.session_instructions.pop(chat_id, None)
+        self.session_costs.pop(chat_id, None)

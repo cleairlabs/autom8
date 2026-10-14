@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from litellm.types.llms.openai import ResponseAPIUsage, ResponsesAPIResponse
 
 from autom8 import Agent, ToolResult
 from autom8.tools import TOOL_REGISTRY
@@ -158,3 +159,60 @@ def test_invoke_uses_responses_image_content(monkeypatch):
     agent.invoke("Describe", image_url="https://example.com/image.png")
     assert captured_prompt[1]["content"] == [{"type": "input_text", "text": "Describe"},
                                               {"type": "input_image", "image_url": "https://example.com/image.png"}]
+
+
+def test_costs_include_all_model_calls_and_are_scoped_to_conversations(monkeypatch):
+    def local_tool() -> ToolResult:
+        return ToolResult(type="data", values=[], model_output="done")
+
+    tool_request = {"type": "function_call", "call_id": "1", "name": "local_tool", "arguments": "{}"}
+    first_response = SimpleNamespace(output=[tool_request], output_text="", _hidden_params={"response_cost": 0.01})
+    second_response = text_response("Done")
+    second_response._hidden_params = {"response_cost": 0.02}
+    third_response = text_response("Again")
+    third_response._hidden_params = {"response_cost": 0.03}
+    model_responses = iter([first_response, second_response, third_response])
+    agent = Agent(model="m", tool_registry={"local_tool": local_tool})
+    monkeypatch.setattr(agent, "_execute_llm_call", lambda prompt, model, response_format: next(model_responses))
+
+    first_result = agent.invoke("Use the tool", chat_id=1)
+    second_result = agent.invoke("Continue", chat_id=1)
+    assert first_result.cost_usd == pytest.approx(0.03)
+    assert first_result.conversation_cost_usd == pytest.approx(0.03)
+    assert second_result.cost_usd == pytest.approx(0.03)
+    assert second_result.conversation_cost_usd == pytest.approx(0.06)
+    assert second_result.to_dict()["conversation_cost_usd"] == pytest.approx(0.06)
+
+    other_response = text_response("Other")
+    other_response._hidden_params = {"response_cost": 0.04}
+    monkeypatch.setattr(agent, "_execute_llm_call", lambda prompt, model, response_format: other_response)
+    assert agent.invoke("New conversation", chat_id=2).conversation_cost_usd == pytest.approx(0.04)
+    agent.reset(1)
+    assert agent.invoke("Restart", chat_id=1).conversation_cost_usd == pytest.approx(0.04)
+    assert agent.invoke("Changed", chat_id=2, instructions="new").conversation_cost_usd == pytest.approx(0.04)
+
+
+def test_missing_cost_does_not_report_partial_total(monkeypatch):
+    agent = Agent(model="m", tool_registry={})
+    known_response = text_response("Known")
+    known_response._hidden_params = {"response_cost": 0.01}
+    model_responses = iter([known_response, text_response("Unknown"), known_response])
+    monkeypatch.setattr(agent, "_execute_llm_call", lambda prompt, model, response_format: next(model_responses))
+
+    assert agent.invoke("First").conversation_cost_usd == pytest.approx(0.01)
+    unknown_result = agent.invoke("Second")
+    assert unknown_result.cost_usd is None
+    assert unknown_result.conversation_cost_usd is None
+    assert agent.invoke("Third").conversation_cost_usd is None
+
+
+def test_invoke_calculates_cost_for_responses_api_usage(monkeypatch):
+    response = ResponsesAPIResponse.model_construct(model="gpt-4o-mini", output=[],
+                                                    usage=ResponseAPIUsage(input_tokens=100, output_tokens=50, total_tokens=150))
+    agent = Agent(model="openai/gpt-4o-mini", tool_registry={})
+    monkeypatch.setattr(agent, "_execute_llm_call", lambda prompt, model, response_format: response)
+
+    result = agent.invoke("Hello")
+    assert response._hidden_params.get("response_cost") is None
+    assert result.cost_usd == pytest.approx(0.000045)
+    assert result.conversation_cost_usd == pytest.approx(0.000045)
