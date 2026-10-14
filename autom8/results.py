@@ -31,6 +31,8 @@ class AgentResult:
     response: str
     tool_calls: list[ToolCall]
     response_items: list[dict[str, Any]] = field(default_factory=list)
+    cost_usd: float | None = None
+    conversation_cost_usd: float | None = None
 
     def results(self, result_type: str) -> list[Any]:
         values = []
