@@ -3,8 +3,26 @@ defaults:
   max_completion_tokens: 2000
   tool_choice: auto
 
-custom_tools:
-  weather_search: user_tools:weather_search_tool
+mcp_servers:
+  weather:
+    transport: streamable_http
+    url: https://weather-api.madadipouya.com/mcp
+  
+  testmcp:
+    transport: streamable_http
+    url: https://idksometestiguess.com/mcp
+
+  astronomy:
+    transport: streamable_http
+    url: https://astronomy.caseyjhand.com/mcp
+  
+  space:
+    transport: streamable_http
+    url: https://www.gocosmik.com/api/mcp
+
+  aviation:
+    transport: streamable_http
+    url: https://aviation-weather.caseyjhand.com/mcp
 
 agents:
   - id: coder
@@ -12,12 +30,34 @@ agents:
       You are a coding assistant whose goal it is to help us solve coding tasks.
       Use available tools when needed.
       If no tool is needed, respond normally.
+      For current weather, use the weather MCP tool. If it fails, report the failure instead of guessing.
     tool_names:
       - read_file
       - list_files
       - edit_file
       - create_directory
-      - weather_search
       # Git tools
       - git_status
       - git_diff
+    mcp_tools:
+      weather:
+        - get_current_weather_by_latitude_and_longitude
+      
+      testmcp: "*"
+      
+      astronomy:
+        - astronomy_get_moon_phase
+        - astronomy_find_events
+        - astronomy_list_visible
+
+      space:
+        - get_next_launches
+        - get_iss_passes
+        - get_launch_news
+
+      aviation:
+        - aviation_find_stations
+        - aviation_get_metar
+        - aviation_get_taf
+        - aviation_get_pireps
+        - aviation_get_advisories
