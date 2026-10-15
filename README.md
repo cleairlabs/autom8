@@ -11,6 +11,14 @@
 Autom8 is a framework for building AI agents.
 It uses LiteLLM's Responses interface for model calls, so models are selected with provider-prefixed names like `openai/gpt-5`, `anthropic/claude-sonnet-4-5`, `mistral/mistral-large-latest`, or `gemini/gemini-2.0-flash`.
 
+## Table of contents
+
+- [Install from GitHub](#install-from-github)
+- [Agent config reference](#agent-config-reference)
+- [MCP tools](#mcp-tools)
+- [Autom8 Built-in tools](#autom8-built-in-tools)
+- [Observability](#observability)
+
 ## Install from GitHub
 
 Install directly from GitHub with `pip`:
