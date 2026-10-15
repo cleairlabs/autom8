@@ -3,6 +3,7 @@ from datetime import timedelta
 import logging
 from typing import Any
 
+import anyio
 import httpx
 from anyio.from_thread import start_blocking_portal
 from mcp import ClientSession, StdioServerParameters
@@ -27,7 +28,8 @@ async def _connect_server(server_config: dict[str, Any]):
             streams = await connection_stack.enter_async_context(streamable_http_client(server_config["url"], http_client=http_client))
         session = await connection_stack.enter_async_context(ClientSession(streams[0], streams[1],
                                                                           read_timeout_seconds=timedelta(seconds=timeout_seconds)))
-        initialization = await session.initialize()
+        with anyio.fail_after(server_config.get("startup_timeout_seconds", 10)):
+            initialization = await session.initialize()
         if initialization.capabilities.tools is None:
             raise ValueError("MCP server does not advertise tool support")
         yield session

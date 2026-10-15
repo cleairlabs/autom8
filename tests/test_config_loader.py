@@ -99,3 +99,26 @@ def test_load_mcp_config_rejects_unknown_server_and_missing_environment(tmp_path
     path.write_text(yaml.safe_dump(configuration))
     with pytest.raises(ValueError, match="Missing environment variable 'AUTOM8_UNSET_COMMAND'"):
         load_agent_config(str(path))
+
+
+@pytest.mark.parametrize("timeout", [0, -1, True, "10", float("inf"), float("nan")])
+def test_load_mcp_config_validates_startup_timeout(tmp_path, timeout):
+    import yaml
+    path = tmp_path / "agents.yaml"
+    path.write_text(yaml.safe_dump({"mcp_servers": {"server": {"transport": "stdio", "command": "python", "startup_timeout_seconds": timeout}},
+                                    "agents": [{"system_prompt": "S", "mcp_tools": {"server": "*"}}]}))
+    with pytest.raises(ValueError, match="startup_timeout_seconds"):
+        load_agent_config(str(path))
+
+
+def test_load_mcp_config_ignores_unselected_and_disabled_server_values(tmp_path, monkeypatch):
+    import yaml
+    monkeypatch.delenv("AUTOM8_UNUSED_TOKEN", raising=False)
+    path = tmp_path / "agents.yaml"
+    path.write_text(yaml.safe_dump({"mcp_servers": {"selected": {"transport": "stdio", "command": "python", "startup_timeout_seconds": 2},
+                                                    "unused": {"transport": "invalid", "env": {"TOKEN": "${AUTOM8_UNUSED_TOKEN}"}},
+                                                    "disabled": {"transport": "stdio", "command": "${AUTOM8_UNUSED_TOKEN}"}},
+                                    "agents": [{"system_prompt": "S", "mcp_tools": {"selected": ["add"], "disabled": []}}]}))
+    config = load_agent_config(str(path))
+    assert config["mcp_servers"] == {"selected": {"transport": "stdio", "command": "python", "startup_timeout_seconds": 2}}
+    assert config["mcp_tools"] == {"selected": ["add"]}

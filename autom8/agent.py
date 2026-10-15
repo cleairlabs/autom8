@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import inspect
 import json
 
@@ -61,6 +62,19 @@ class Agent:
                     mcp_tools=config.get("mcp_tools"),
                     builtin_tool_decorator=builtin_tool_decorator)
         return agent
+
+
+    @contextmanager
+    def connect(self):
+        """Initialize selected MCP servers and reuse their connections until the context exits."""
+        with self._mcp_tools.connect():
+            yield self
+
+
+    @property
+    def mcp_status(self) -> dict[str, str]:
+        """Return connection status for selected servers only."""
+        return self._mcp_tools.status
 
 
     def _reset_prompt(self, system_prompt: str) -> List[Dict[str, Any]]:

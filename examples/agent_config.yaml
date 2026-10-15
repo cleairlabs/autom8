@@ -7,9 +7,22 @@ mcp_servers:
   weather:
     transport: streamable_http
     url: https://weather-api.madadipouya.com/mcp
+  
   testmcp:
     transport: streamable_http
     url: https://idksometestiguess.com/mcp
+
+  astronomy:
+    transport: streamable_http
+    url: https://astronomy.caseyjhand.com/mcp
+  
+  space:
+    transport: streamable_http
+    url: https://www.gocosmik.com/api/mcp
+
+  aviation:
+    transport: streamable_http
+    url: https://aviation-weather.caseyjhand.com/mcp
 
 agents:
   - id: coder
@@ -29,4 +42,22 @@ agents:
     mcp_tools:
       weather:
         - get_current_weather_by_latitude_and_longitude
+      
       testmcp: "*"
+      
+      astronomy:
+        - astronomy_get_moon_phase
+        - astronomy_find_events
+        - astronomy_list_visible
+
+      space:
+        - get_next_launches
+        - get_iss_passes
+        - get_launch_news
+
+      aviation:
+        - aviation_find_stations
+        - aviation_get_metar
+        - aviation_get_taf
+        - aviation_get_pireps
+        - aviation_get_advisories

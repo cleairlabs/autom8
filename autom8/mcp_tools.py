@@ -1,10 +1,10 @@
 import logging
 import re
 from contextlib import contextmanager
-from functools import partial
 from hashlib import sha256
 from typing import Any
 
+import anyio
 from mcp.types import PaginatedRequestParams
 
 from .mcp_client import connect_servers
@@ -22,57 +22,71 @@ def _model_tool_name(server_name: str, tool_name: str) -> str:
     return model_name
 
 
+async def _discover_tools(session, selected_tools, timeout_seconds):
+    discovered_tools = []
+    cursor = None
+    with anyio.fail_after(timeout_seconds):
+        while True:
+            page = await session.list_tools(params=PaginatedRequestParams(cursor=cursor))
+            discovered_tools.extend(tool for tool in page.tools if selected_tools == "*" or tool.name in selected_tools)
+            cursor = page.nextCursor
+            if not cursor:
+                return discovered_tools
+
+
 class MCPTools:
     def __init__(self, server_configs: dict[str, dict[str, Any]], tool_selection: dict[str, Any], reserved_names):
-        self.server_configs = {server_name: server_configs[server_name] for server_name, selected_tools in tool_selection.items() if selected_tools}
-        self.tool_selection = tool_selection
+        self.tool_selection = {server_name: selected_tools for server_name, selected_tools in tool_selection.items() if selected_tools}
+        self.server_configs = {server_name: server_configs[server_name] for server_name in self.tool_selection}
         self.reserved_names = set(reserved_names)
         self.definitions: list[dict[str, Any]] = []
         self._routes: dict[str, Any] = {}
         self._portal = None
         self._failed_servers: set[str] = set()
+        self._connected_servers: set[str] = set()
+
+    @property
+    def status(self) -> dict[str, str]:
+        if self._portal is None:
+            return {server_name: "disconnected" for server_name in self.server_configs}
+        return {server_name: "connected" if server_name in self._connected_servers - self._failed_servers else "unavailable"
+                for server_name in self.server_configs}
 
     @contextmanager
     def connect(self):
-        if not self.server_configs:
+        if self._portal is not None or not self.server_configs:
             yield self
             return
         try:
             with connect_servers(self.server_configs) as (portal, sessions):
                 self._portal = portal
                 for server_name, session in sessions.items():
-                    discovered_tools = []
-                    cursor = None
+                    selected_tools = self.tool_selection[server_name]
                     try:
-                        while True:
-                            page = portal.call(partial(session.list_tools, params=PaginatedRequestParams(cursor=cursor)))
-                            discovered_tools.extend(page.tools)
-                            cursor = page.nextCursor
-                            if not cursor:
-                                break
+                        discovered_tools = portal.call(_discover_tools, session, selected_tools,
+                                                       self.server_configs[server_name].get("startup_timeout_seconds", 10))
                     except Exception:
                         logger.warning("Could not discover tools on MCP server '%s'; continuing without its tools.", server_name)
                         logger.debug("MCP discovery failed for '%s'", server_name, exc_info=True)
                         continue
-                    selected_tools = self.tool_selection[server_name]
                     if selected_tools != "*":
                         missing_tools = set(selected_tools) - {tool.name for tool in discovered_tools}
                         if missing_tools:
                             raise ValueError(f"Unknown MCP tools on server '{server_name}': {', '.join(sorted(missing_tools))}")
                     for tool in discovered_tools:
-                        if selected_tools != "*" and tool.name not in selected_tools:
-                            continue
                         model_name = _model_tool_name(server_name, tool.name)
                         if model_name in self.reserved_names or model_name in self._routes:
                             raise ValueError(f"MCP tool name collision: '{model_name}'")
                         self._routes[model_name] = (server_name, session, tool.name)
                         self.definitions.append({"type": "function", "name": model_name, "description": tool.description or "",
                                                  "parameters": tool.inputSchema, "strict": False})
+                    self._connected_servers.add(server_name)
                 yield self
         finally:
             self.definitions.clear()
             self._routes.clear()
             self._failed_servers.clear()
+            self._connected_servers.clear()
             self._portal = None
 
     def handles(self, tool_name: str) -> bool:

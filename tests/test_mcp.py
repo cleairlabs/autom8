@@ -418,3 +418,158 @@ def test_cleanup_failure_is_logged_and_does_not_mask_model_errors(monkeypatch, c
             assert not model_error
     assert closed == ["broken", "healthy", "broken", "healthy"]
     assert "Could not close MCP server 'broken' cleanly" in caplog.text
+
+
+def test_connection_context_reuses_process_across_messages_and_closes_on_interrupt(monkeypatch):
+    agent = Agent(model="m", tool_registry={}, mcp_servers={"server": stdio_config()}, mcp_tools={"server": ["add"]})
+    process_ids = []
+    request_count = 0
+
+    def fake_responses(**request):
+        nonlocal request_count
+        request_count += 1
+        if request_count % 2:
+            return SimpleNamespace(output=[{"type": "function_call", "call_id": str(request_count), "name": "server__add",
+                                            "arguments": '{"left": 2}'}], output_text="")
+        return SimpleNamespace(output=[], output_text="Done")
+
+    monkeypatch.setattr("autom8.agent.responses", fake_responses)
+    assert agent.mcp_status == {"server": "disconnected"}
+    with pytest.raises(KeyboardInterrupt):
+        with agent.connect() as connected_agent:
+            assert connected_agent is agent
+            assert agent.mcp_status == {"server": "connected"}
+            for _ in range(2):
+                with agent.connect():
+                    result = agent.invoke("Add")
+                    process_ids.append(result.results("mcp")[0]["structuredContent"]["pid"])
+                os.kill(process_ids[-1], 0)
+            assert len(set(process_ids)) == 1
+            raise KeyboardInterrupt()
+    with pytest.raises(ProcessLookupError):
+        os.kill(process_ids[0], 0)
+    assert agent.mcp_status == {"server": "disconnected"}
+    assert agent._mcp_tools.definitions == []
+
+
+def test_unselected_and_disabled_servers_are_not_retained_or_connected(monkeypatch):
+    class UnselectedConfig(dict):
+        def get(self, *arguments):
+            pytest.fail("Unselected server configuration must not be read")
+
+    def unexpected_model_call(**request):
+        pytest.fail("Connecting must not call the model")
+
+    monkeypatch.setattr("autom8.agent.responses", unexpected_model_call)
+    agent = Agent(model="m", tool_registry={}, mcp_servers={"selected": stdio_config(), "unused": UnselectedConfig(), "disabled": UnselectedConfig()},
+                  mcp_tools={"selected": ["add"], "disabled": []})
+    assert agent._mcp_tools.server_configs.keys() == {"selected"}
+    assert agent._mcp_tools.tool_selection == {"selected": ["add"]}
+    assert agent._mcp_tools._portal is None
+    with agent.connect():
+        assert agent.mcp_status == {"selected": "connected"}
+        assert [definition["name"] for definition in agent._mcp_tools.definitions] == ["selected__add"]
+        assert not agent._mcp_tools.handles("selected__wait")
+
+
+def test_empty_selection_does_not_start_portal(monkeypatch):
+    def unexpected_connection(*arguments):
+        pytest.fail("An agent without selected servers must not start MCP infrastructure")
+
+    monkeypatch.setattr("autom8.mcp_tools.connect_servers", unexpected_connection)
+    agent = Agent(model="m", tool_registry={}, mcp_servers={"unused": {}}, mcp_tools={"unused": []})
+    with agent.connect():
+        assert agent.mcp_status == {}
+        assert agent._mcp_tools.definitions == []
+
+
+def test_connection_context_discovers_once_and_retries_only_on_reentry(fake_mcp_connection, monkeypatch, caplog):
+    discovery_calls = []
+
+    async def list_tools(*, params):
+        discovery_calls.append(True)
+        if len(discovery_calls) == 1:
+            raise ConnectionError("temporarily unavailable")
+        return ListToolsResult(tools=[])
+
+    closed = fake_mcp_connection({"server": SimpleNamespace(list_tools=list_tools)})
+    monkeypatch.setattr("autom8.agent.responses", lambda **request: SimpleNamespace(output=[], output_text="Done"))
+    agent = Agent(model="m", tool_registry={}, mcp_servers={"server": {}}, mcp_tools={"server": "*"})
+    with agent.connect():
+        assert agent.mcp_status == {"server": "unavailable"}
+        agent.invoke("Hello")
+        agent.invoke("Again")
+        assert len(discovery_calls) == 1
+    with agent.connect():
+        assert agent.mcp_status == {"server": "connected"}
+        agent.invoke("Recovered")
+        assert len(discovery_calls) == 2
+    assert closed == [True, True]
+    assert caplog.text.count("Could not discover tools") == 1
+
+
+def test_initialization_uses_startup_timeout_instead_of_tool_timeout(caplog):
+    tools = MCPTools({"slow": stdio_config(args=["-c", "import time; time.sleep(10)"], startup_timeout_seconds=0.05, timeout_seconds=60)},
+                     {"slow": "*"}, [])
+    started_at = time.monotonic()
+    with tools.connect():
+        assert tools.status == {"slow": "unavailable"}
+        assert tools.definitions == []
+    assert time.monotonic() - started_at < 5
+    assert "MCP server 'slow' is unavailable" in caplog.text
+
+
+def test_discovery_timeout_covers_all_pages_and_discards_partial_tools(fake_mcp_connection, caplog):
+    import anyio
+    cursors = []
+
+    async def list_tools(*, params):
+        cursors.append(params.cursor)
+        await anyio.sleep(0.03)
+        return ListToolsResult(tools=[Tool(name="read", inputSchema={"type": "object"})], nextCursor="next-page")
+
+    closed = fake_mcp_connection({"server": SimpleNamespace(list_tools=list_tools)})
+    tools = MCPTools({"server": {"startup_timeout_seconds": 0.05, "timeout_seconds": 60}}, {"server": "*"}, [])
+    with tools.connect():
+        assert tools.status == {"server": "unavailable"}
+        assert tools.definitions == []
+        assert not tools.handles("server__read")
+    assert cursors == [None, "next-page"]
+    assert "Could not discover tools on MCP server 'server'" in caplog.text
+    assert closed == [True]
+
+
+def test_cli_initializes_and_prints_readiness_before_input(fake_mcp_connection, monkeypatch, capsys):
+    import logging
+    import runpy
+
+    async def list_tools(*, params):
+        return ListToolsResult(tools=[])
+
+    async def broken_list_tools(*, params):
+        raise ConnectionError("unavailable")
+
+    closed = fake_mcp_connection({"healthy": SimpleNamespace(list_tools=list_tools), "broken": SimpleNamespace(list_tools=broken_list_tools)})
+    agent = Agent(model="m", tool_registry={}, mcp_servers={"healthy": {}, "broken": {}}, mcp_tools={"healthy": "*", "broken": "*"})
+    monkeypatch.setitem(sys.modules, "pyfiglet", SimpleNamespace(Figlet=lambda **options: SimpleNamespace(renderText=lambda text: text)))
+    monkeypatch.setitem(sys.modules, "dotenv", SimpleNamespace(load_dotenv=lambda: None))
+    monkeypatch.setitem(sys.modules, "prompt_toolkit", None)
+    namespace = runpy.run_path(str(Path(__file__).parents[1] / "examples" / "autom8_CLI.py"))
+    monkeypatch.setitem(namespace["main"].__globals__, "load_agent_config", lambda path: {})
+    monkeypatch.setattr(Agent, "from_config", lambda config: agent)
+    mcp_logger = logging.getLogger("autom8.mcp")
+    monkeypatch.setattr(mcp_logger, "handlers", [])
+    monkeypatch.setattr(mcp_logger, "level", logging.WARNING)
+    monkeypatch.setattr(mcp_logger, "propagate", True)
+
+    def first_input(prompt):
+        output = capsys.readouterr()
+        assert "Ready · 0 Python tools · 1 MCP connected · 1 unavailable" in output.out
+        assert "Could not discover tools on MCP server 'broken'" in output.err
+        assert agent.mcp_status == {"healthy": "connected", "broken": "unavailable"}
+        raise EOFError()
+
+    monkeypatch.setattr("builtins.input", first_input)
+    namespace["main"]()
+    assert closed == [True]
+    assert agent.mcp_status == {"healthy": "disconnected", "broken": "disconnected"}

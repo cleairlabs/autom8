@@ -56,10 +56,11 @@ def _load_mcp_config(raw_config: Dict[str, Any], selected_agent: Dict[str, Any])
         if not isinstance(server_config, dict) or server_config.get("transport") not in ("stdio", "streamable_http"):
             raise ValueError(f"MCP server '{server_name}' must specify transport: stdio or streamable_http")
         server_config = dict(server_config)
-        timeout_seconds = server_config.get("timeout_seconds", 60)
-        if (isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float))
-                or not math.isfinite(timeout_seconds) or timeout_seconds <= 0):
-            raise ValueError(f"MCP server '{server_name}' timeout_seconds must be a positive finite number")
+        for timeout_field, default_timeout in (("timeout_seconds", 60), ("startup_timeout_seconds", 10)):
+            timeout_seconds = server_config.get(timeout_field, default_timeout)
+            if (isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (int, float))
+                    or not math.isfinite(timeout_seconds) or timeout_seconds <= 0):
+                raise ValueError(f"MCP server '{server_name}' {timeout_field} must be a positive finite number")
         required_field = "command" if server_config["transport"] == "stdio" else "url"
         if not isinstance(server_config.get(required_field), str) or not server_config[required_field]:
             raise ValueError(f"MCP server '{server_name}' requires '{required_field}'")

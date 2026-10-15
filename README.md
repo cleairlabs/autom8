@@ -201,19 +201,33 @@ See [examples/mcp_agent_config.yaml](examples/mcp_agent_config.yaml) for a compl
 
 - Define connections under top-level `mcp_servers`; each agent's `mcp_tools` selects which servers and tools it can use.
 - A list selects exact tool names. A quoted `"*"` exposes all tools from that server. An empty list disables it.
-- Only selected servers are connected. Python tools selected with `tool_names` and provider `hosted_tools` continue to work alongside MCP tools.
+- Only selected servers are retained and connected; unselected and empty selections are not initialized or expanded. Python tools selected with `tool_names` and provider `hosted_tools` continue to work alongside MCP tools.
 - `stdio` launches a local process using `command`, optional `args`, `env`, and `cwd`. Commands run directly, without a shell.
 - `streamable_http` connects to an existing HTTP or HTTPS endpoint using `url` and optional `headers`.
 - `${VARIABLE}` references expand in connection strings, arguments, working directories, environment values, and headers. Missing variables raise an error.
 - Relative paths and `cwd` use the application's working directory, as Python tools do. Paths are not resolved relative to the YAML file.
 - Local servers inherit only the SDK's minimal environment; explicitly pass API keys and other required variables through `env`.
+- `startup_timeout_seconds` defaults to 10 and bounds initialization and the complete paginated tool discovery separately.
 - `timeout_seconds` defaults to 60 and bounds MCP requests and HTTP operations. Increase it for tools that need longer to finish.
 
-Autom8 discovers tools before the first model request in each `invoke()`, preserves their JSON input schemas, and assigns names such as `issues__search_issues`.
+Autom8 discovers tools when opening MCP connections, preserves their JSON input schemas, and assigns names such as `issues__search_issues`.
 Names containing unsupported model characters or exceeding 64 characters receive a normalized name with a stable hash suffix.
 Missing selected tools and name collisions raise an error before the model is called.
-Connections stay open through all tool calls in that invocation and close automatically on success or failure.
-Each subsequent invocation reconnects and discovers tools again; local server processes restart, so do not depend on their in-memory state surviving between invocations.
+Standalone `invoke()` calls open connections for that invocation and close them automatically on success or failure.
+For an interactive application, explicitly connect before accepting input and reuse the connections across messages:
+
+```python
+agent = Agent.from_config(load_agent_config("agents.yaml"))
+with agent.connect():
+    print(agent.mcp_status)  # Selected servers only: connected or unavailable.
+    first_result = agent.invoke("Find the open issues.")
+    second_result = agent.invoke("Summarize the first issue.")
+```
+
+Construction performs no MCP network requests or process launches. Entering `connect()` initializes and discovers selected servers once;
+nested contexts and `invoke()` reuse those connections. Leaving the outer context closes them, including on exceptions, Ctrl+C, and EOF.
+Outside a connection context, `mcp_status` reports selected servers as disconnected. The CLI displays readiness before its first input prompt.
+Local server processes restart when entering a new connection context, so their in-memory state is preserved only within that context.
 `Agent` holds mutable conversation and MCP state; do not invoke the same instance concurrently.
 
 MCP calls appear in `result.tool_calls` and trigger `on_tool_call(name, arguments)` before execution, just like Python tools.
@@ -225,8 +239,9 @@ Servers that fail connection or discovery are omitted from the model's tools; ot
 Failures are logged through Python's `autom8.mcp` logger, with exception details at DEBUG level. The library installs no output handler;
 configure a handler to display warnings, as the CLI example does. No outage notice is added to the model's prompt.
 If a connection or protocol failure occurs during a tool call, the model receives a generic error result and that server's tools are removed
-from subsequent requests in the invocation. Already requested calls to that server are not executed again.
-Server-reported tool errors remain ordinary tool results. Unavailable servers are tried again on the next invocation.
+from subsequent requests in the connection context. Already requested calls to that server are not executed again.
+Server-reported tool errors remain ordinary tool results. To retry unavailable servers, leave the connection context and enter a new one.
+Standalone invocations retry unavailable servers on the next invocation.
 Invalid configuration, missing selected tool names, and name collisions still raise errors.
 Tool calls are not automatically retried, since repeating a write operation could duplicate its effects.
 

@@ -9,6 +9,7 @@ mcp_servers:
     url: http://localhost:8000/mcp
     # headers:
     #   Authorization: "Bearer ${DOCUMENTS_TOKEN}"
+    startup_timeout_seconds: 10
     timeout_seconds: 60
 
 agents:
