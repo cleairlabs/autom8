@@ -1,0 +1,18 @@
+defaults:
+  model: openai/gpt-5
+  max_completion_tokens: 2000
+  tool_choice: auto
+
+mcp_servers:
+  documents:
+    transport: streamable_http
+    url: http://localhost:8000/mcp
+    # headers:
+    #   Authorization: "Bearer ${DOCUMENTS_TOKEN}"
+    timeout_seconds: 60
+
+agents:
+  - id: researcher
+    system_prompt: Help users research questions using the available document tools.
+    mcp_tools:
+      documents: "*"  # Or list the exact server tool names to expose.

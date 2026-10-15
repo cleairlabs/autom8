@@ -58,7 +58,7 @@ agent.invoke("Hello")
 agent.invoke("Hello", model="anthropic/claude-sonnet-4-5")
 ```
 
-`Agent.invoke(...)` returns an `AgentResult` containing the final response and any local tool calls made while producing it.
+`Agent.invoke(...)` returns an `AgentResult` containing the final response and any Python or MCP tool calls made while producing it.
 The `response_items` field contains the typed Responses output items, including hosted-tool calls and citation annotations.
 `cost_usd` is the LiteLLM-provided or calculated cost of all model calls made for that answer and `conversation_cost_usd` is the running total for its `chat_id`.
 Both are in USD and are `None` if any required model-call cost is unavailable.
@@ -154,6 +154,86 @@ Custom tools must live in an importable Python module or package.
 Autom8 does not resolve custom tools relative to the YAML file.
 If your YAML file and custom tool module live in the same directory, run Python from that directory so the module is importable.
 You may need to add an `__init__.py` file if your custom tools live in a package directory.
+
+## MCP tools
+
+Add MCP servers and select their tools in YAML. The existing Python API stays the same:
+
+```python
+agent = Agent.from_config(load_agent_config("agents.yaml"))
+result = agent.invoke("Find the open issues for this project.")
+```
+
+The MCP SDK is included in Autom8's dependencies; existing installations need to reinstall or upgrade Autom8 once.
+
+```yaml
+mcp_servers:
+  issues:
+    transport: streamable_http
+    url: https://issues.example.com/mcp
+    headers:
+      Authorization: "Bearer ${ISSUES_TOKEN}"
+    timeout_seconds: 60
+
+  documents:
+    transport: stdio
+    command: python
+    args: ["./integrations/document_server.py"]
+    env:
+      DOCUMENTS_TOKEN: "${DOCUMENTS_TOKEN}"
+    # cwd: /path/to/project
+
+agents:
+  - id: project_assistant
+    model: openai/gpt-5
+    system_prompt: Help users understand project issues and documentation.
+    tool_names:
+      - read_file
+    mcp_tools:
+      issues:
+        - search_issues
+        - get_issue
+      documents: "*"
+```
+
+The URLs, script, and tool names above are illustrative; use a working server's connection details and exact advertised tool names.
+See [examples/mcp_agent_config.yaml](examples/mcp_agent_config.yaml) for a complete HTTP configuration.
+
+- Define connections under top-level `mcp_servers`; each agent's `mcp_tools` selects which servers and tools it can use.
+- A list selects exact tool names. A quoted `"*"` exposes all tools from that server. An empty list disables it.
+- Only selected servers are connected. Python tools selected with `tool_names` and provider `hosted_tools` continue to work alongside MCP tools.
+- `stdio` launches a local process using `command`, optional `args`, `env`, and `cwd`. Commands run directly, without a shell.
+- `streamable_http` connects to an existing HTTP or HTTPS endpoint using `url` and optional `headers`.
+- `${VARIABLE}` references expand in connection strings, arguments, working directories, environment values, and headers. Missing variables raise an error.
+- Relative paths and `cwd` use the application's working directory, as Python tools do. Paths are not resolved relative to the YAML file.
+- Local servers inherit only the SDK's minimal environment; explicitly pass API keys and other required variables through `env`.
+- `timeout_seconds` defaults to 60 and bounds MCP requests and HTTP operations. Increase it for tools that need longer to finish.
+
+Autom8 discovers tools before the first model request in each `invoke()`, preserves their JSON input schemas, and assigns names such as `issues__search_issues`.
+Names containing unsupported model characters or exceeding 64 characters receive a normalized name with a stable hash suffix.
+Missing selected tools and name collisions raise an error before the model is called.
+Connections stay open through all tool calls in that invocation and close automatically on success or failure.
+Each subsequent invocation reconnects and discovers tools again; local server processes restart, so do not depend on their in-memory state surviving between invocations.
+`Agent` holds mutable conversation and MCP state; do not invoke the same instance concurrently.
+
+MCP calls appear in `result.tool_calls` and trigger `on_tool_call(name, arguments)` before execution, just like Python tools.
+`result.results("mcp")` returns full serialized MCP results, including binary content and application metadata.
+Text, resource links, embedded text resources, structured content, and the `isError` flag are passed to the model.
+Binary content remains available to the calling application; the model receives a notice instead of base64 data.
+MCP `_meta` on results, content blocks, and embedded resources stays in application results and is not passed to the model.
+Servers that fail connection or discovery are omitted from the model's tools; other servers and Python tools remain usable.
+Failures are logged through Python's `autom8.mcp` logger, with exception details at DEBUG level. The library installs no output handler;
+configure a handler to display warnings, as the CLI example does. No outage notice is added to the model's prompt.
+If a connection or protocol failure occurs during a tool call, the model receives a generic error result and that server's tools are removed
+from subsequent requests in the invocation. Already requested calls to that server are not executed again.
+Server-reported tool errors remain ordinary tool results. Unavailable servers are tried again on the next invocation.
+Invalid configuration, missing selected tool names, and name collisions still raise errors.
+Tool calls are not automatically retried, since repeating a write operation could duplicate its effects.
+
+This implementation supports MCP tools over stdio and Streamable HTTP with configured credentials or headers.
+Interactive OAuth login, resources and prompts as separate capabilities, sampling, elicitation, and legacy HTTP+SSE are not implemented.
+It uses the [official SDK's supported 1.x line](https://github.com/modelcontextprotocol/python-sdk/tree/v1.30.0) to retain Python 3.10 compatibility,
+and [AnyIO's blocking portal](https://anyio.readthedocs.io/en/stable/threads.html#using-asynchronous-context-managers) to manage asynchronous connections behind the synchronous API.
 
 ## Autom8 Built-in tools
 

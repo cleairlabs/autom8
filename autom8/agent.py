@@ -4,6 +4,7 @@ import json
 from litellm import completion_cost, responses
 from typing import Any, Callable, Dict, List
 
+from .mcp_tools import MCPTools
 from .results import AgentResult, ToolCall, ToolResult
 from .tools import TOOL_REGISTRY
 
@@ -23,6 +24,8 @@ class Agent:
         builtin_tool_decorator: ToolDecorator | None = None,
         reasoning_effort: str | None = None,
         hosted_tools: List[Dict[str, Any]] | None = None,
+        mcp_servers: Dict[str, Any] | None = None,
+        mcp_tools: Dict[str, Any] | None = None,
     ):
         self.default_model = model
         self.tool_registry = dict(tool_registry)
@@ -37,6 +40,7 @@ class Agent:
         self.parallel_tool_calls = parallel_tool_calls
         self.hosted_tools = [dict(hosted_tool) for hosted_tool in hosted_tools or []]
         self.tools = self._build_tools()
+        self._mcp_tools = MCPTools(mcp_servers or {}, mcp_tools or {}, self.tool_registry)
         self.SYSTEM_PROMPT = system_prompt
         self.sessions: Dict[int, List[Dict[str, Any]]] = {}
         self.session_instructions: Dict[int, str] = {}
@@ -53,6 +57,8 @@ class Agent:
                     reasoning_effort=config.get("reasoning_effort"),
                     parallel_tool_calls=config.get("parallel_tool_calls"),
                     hosted_tools=config.get("hosted_tools"),
+                    mcp_servers=config.get("mcp_servers"),
+                    mcp_tools=config.get("mcp_tools"),
                     builtin_tool_decorator=builtin_tool_decorator)
         return agent
 
@@ -91,8 +97,9 @@ class Agent:
             "input": prompt,
             "max_output_tokens": self.max_completion_tokens,
         }
-        if self.tools:
-            request_options["tools"] = self.tools
+        available_tools = self.tools + self._mcp_tools.definitions
+        if available_tools:
+            request_options["tools"] = available_tools
             request_options["tool_choice"] = self.tool_choice
             if self.parallel_tool_calls is not None:
                 request_options["parallel_tool_calls"] = self.parallel_tool_calls
@@ -139,6 +146,22 @@ class Agent:
                image_url: str | None = None,
                response_format: Dict[str, Any] | None = None,
                on_tool_call=None) -> AgentResult:
+        if model is None and self.default_model is None:
+            raise ValueError("No model specified")
+        with self._mcp_tools.connect():
+            return self._invoke(message, chat_id=chat_id, instructions=instructions, model=model, image_url=image_url,
+                                response_format=response_format, on_tool_call=on_tool_call)
+
+
+    def _invoke(self,
+               message: str | None = None,
+               *,
+               chat_id: int = 0,
+               instructions: str | None = None,
+               model: str | None = None,
+               image_url: str | None = None,
+               response_format: Dict[str, Any] | None = None,
+               on_tool_call=None) -> AgentResult:
         if model is None:
             if self.default_model is None:
                 raise ValueError("No model specified")
@@ -172,7 +195,7 @@ class Agent:
             prompt.extend(current_response_items)
             requested_tool_calls = [response_item for response_item in current_response_items if response_item.get("type") == "function_call"]
             if not requested_tool_calls:
-                return AgentResult(response=response.output_text, tool_calls=tool_calls, response_items=response_items,
+                return AgentResult(response=response.output_text, tool_calls=tool_calls, response_items=response_items, # type: ignore
                                    cost_usd=cost_usd, conversation_cost_usd=self.session_costs[chat_id]) # type: ignore
 
             for call in requested_tool_calls:
@@ -180,14 +203,17 @@ class Agent:
                 args = json.loads(call.get("arguments") or "{}")
                 if on_tool_call is not None:
                     on_tool_call(name, args)
-                tool = self.tool_registry[name] # type: ignore
-                signature = self._tool_signatures[name] # type: ignore
-                kwargs = {
-                    param: args.get(param)
-                    for param in signature.parameters
-                    if param in args
-                }
-                tool_result = tool(**kwargs)
+                if self._mcp_tools.handles(name):
+                    tool_result = self._mcp_tools.call(name, args)
+                else:
+                    tool = self.tool_registry[name] # type: ignore
+                    signature = self._tool_signatures[name] # type: ignore
+                    kwargs = {
+                        param: args.get(param)
+                        for param in signature.parameters
+                        if param in args
+                    }
+                    tool_result = tool(**kwargs)
                 if not isinstance(tool_result, ToolResult):
                     raise TypeError(f"Tool '{name}' must return ToolResult, got {type(tool_result).__name__}")
                 tool_calls.append(ToolCall(name=name, arguments=args, result=tool_result)) # type: ignore
