@@ -20,6 +20,25 @@ def test_load_agent_config_reads_optional_reasoning_effort(tmp_path):
     assert config["reasoning_effort"] == "medium"
 
 
+@pytest.mark.parametrize("default_settings, agent_settings, expected_reasoning_effort",
+                         [({"reasoning_effort": "medium"}, {}, "medium"),
+                          ({"reasoning_effort": "medium"}, {"reasoning_effort": "high"}, "high"),
+                          ({"reasoning_effort": "medium"}, {"reasoning_effort": None}, None),
+                          ({}, {"reasoning_effort": "high"}, "high"),
+                          ({}, {}, None)])
+def test_load_agent_config_respects_selected_agent_reasoning_effort(tmp_path, default_settings, agent_settings, expected_reasoning_effort):
+    import yaml
+    path = tmp_path / "agents.yaml"
+    configuration = {
+        "defaults": default_settings,
+        "agents": [{"id": "inheriting_agent", "system_prompt": "Default"},
+                   {"id": "selected_agent", "system_prompt": "Selected", **agent_settings}],
+    }
+    path.write_text(yaml.safe_dump(configuration), encoding="utf-8")
+    assert load_agent_config(str(path), "selected_agent")["reasoning_effort"] == expected_reasoning_effort
+    assert load_agent_config(str(path), "inheriting_agent")["reasoning_effort"] == default_settings.get("reasoning_effort")
+
+
 def test_load_agent_config_reads_hosted_tools_from_defaults_and_agent(tmp_path):
     path = tmp_path / "agents.yaml"
     yaml_config = ("defaults:\n  hosted_tools:\n    - type: web_search\nagents:\n  - id: a\n    system_prompt: A\n"
@@ -95,7 +114,7 @@ def test_load_mcp_config_rejects_unknown_server_and_missing_environment(tmp_path
     path.write_text(yaml.safe_dump(configuration))
     with pytest.raises(ValueError, match="Unknown MCP server"):
         load_agent_config(str(path))
-    configuration["mcp_servers"] = {"missing": {"transport": "stdio", "command": "${AUTOM8_UNSET_COMMAND}"}}
+    configuration["mcp_servers"] = {"missing": {"transport": "stdio", "command": "${AUTOM8_UNSET_COMMAND}"}} # type: ignore
     path.write_text(yaml.safe_dump(configuration))
     with pytest.raises(ValueError, match="Missing environment variable 'AUTOM8_UNSET_COMMAND'"):
         load_agent_config(str(path))
