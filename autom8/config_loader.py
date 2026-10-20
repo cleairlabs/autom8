@@ -153,7 +153,7 @@ def load_agent_config(path: str, agent_id: str | None = None) -> Dict[str, Any]:
         "tool_registry": tool_registry,
         "max_completion_tokens": defaults.get("max_completion_tokens", 2000),
         "tool_choice": defaults.get("tool_choice", "auto"),
-        "reasoning_effort": defaults.get("reasoning_effort"),
+        "reasoning_effort": selected_agent.get("reasoning_effort", defaults.get("reasoning_effort")),
         "parallel_tool_calls": defaults.get("parallel_tool_calls"),
         "hosted_tools": [dict(hosted_tool) for hosted_tool in hosted_tools],
     }
